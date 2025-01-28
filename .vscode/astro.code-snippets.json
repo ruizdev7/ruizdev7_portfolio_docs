@@ -1,0 +1,13 @@
+{
+	"Componente Astro": {
+		"prefix": "astro-component",
+		"body": [
+			"---",
+			"// Component: ${1:name}",
+			"---",
+			"<div>",
+			"\t$0",
+			"</div>"
+		]
+	}
+}

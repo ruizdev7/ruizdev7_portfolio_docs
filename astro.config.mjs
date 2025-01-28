@@ -12,20 +12,40 @@ export default defineConfig({
       },
       sidebar: [
         {
-          label: "Como instalar Docker",
+          label: "Who I am ? 🤓",
           items: [
             // Each item here is one entry in the navigation menu.
             {
-              label: "Example Guide how to install docker on Ubuntu",
-              slug: "guides/how_implement_docker",
+              label: "Introducction",
+              slug: "guides/let_me_introduce_myself",
+            },
+          ],
+        },
+        {
+          label: "Docker 🐳",
+          items: [
+            // Each item here is one entry in the navigation menu.
+            {
+              label: "20 Docker Commands",
+              slug: "guides/docker_commands",
             },
             {
-              label: "Example Guide how to install docker on Ubuntu",
-              slug: "guides/how_implement_docker",
+              slug: "guides/creating_dockerfile",
+              label: "creating-Dockerfile",
+            },
+          ],
+        },
+        {
+          label: "SRS",
+          items: [
+            // Each item here is one entry in the navigation menu.
+            {
+              label: "SRS 001",
+              slug: "software_specifications/srs_001",
             },
             {
-              label: "Example Guide how to install docker on Ubuntu",
-              slug: "guides/how_implement_docker",
+              label: "SRS 002",
+              slug: "software_specifications/srs_002",
             },
           ],
         },

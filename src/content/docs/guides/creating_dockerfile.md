@@ -1,0 +1,170 @@
+---
+title: Creating a Dockerfile for Your Service
+description: Learn how to create a Dockerfile for a service with a backend and frontend.
+---
+
+Creating a Dockerfile is essential for containerizing your application. This guide will walk you through the steps to create a Dockerfile for a service with a backend and frontend.
+
+## Backend Dockerfile
+
+First, let's create a Dockerfile for the backend service. This example uses Python and Flask.
+
+### Step 1: Create a Dockerfile
+
+1. Create a file named `Dockerfile` in the root of your backend directory.
+2. Add the following content to the `Dockerfile`:
+
+    ```dockerfile
+    # Use the official Python image from the Docker Hub
+    FROM python:3.9-slim
+
+    # Set the working directory
+    WORKDIR /app
+
+    # Copy the requirements file into the container
+    COPY requirements.txt requirements.txt
+
+    # Install the dependencies
+    RUN pip install -r requirements.txt
+
+    # Copy the rest of the application code into the container
+    COPY . .
+
+    # Expose the port the app runs on
+    EXPOSE 6000
+
+    # Run the application with Gunicorn
+    CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:6000", "wsgi:app"]
+    ```
+
+### Step 2: Create a `requirements.txt` File
+
+Ensure you have a `requirements.txt` file in your backend directory with the necessary dependencies:
+
+    ```plaintext
+    Flask==2.3.3
+    Flask-Cors==4.0.0
+    Flask-JWT-Extended==4.5.2
+    Flask-Migrate==4.0.5
+    Flask-SQLAlchemy==3.1.1
+    gunicorn==21.2.0
+    ```
+
+### Step 3: Create a `wsgi.py` File
+
+Create a `wsgi.py` file to serve your Flask application:
+
+    ```python
+    from portfolio_app import create_app
+
+    app = create_app()
+
+    if __name__ == "__main__":
+        app.run(host="0.0.0.0", port=6000)
+    ```
+
+## Frontend Dockerfile
+
+Next, let's create a Dockerfile for the frontend service. This example uses React.
+
+### Step 1: Create a Dockerfile
+
+1. Create a file named `Dockerfile` in the root of your frontend directory.
+2. Add the following content to the `Dockerfile`:
+
+    ```dockerfile
+    # Use the official Node.js image from the Docker Hub
+    FROM node:14
+
+    # Set the working directory
+    WORKDIR /app
+
+    # Copy the package.json and package-lock.json files into the container
+    COPY package*.json ./
+
+    # Install the dependencies
+    RUN npm install
+
+    # Copy the rest of the application code into the container
+    COPY . .
+
+    # Build the application
+    RUN npm run build
+
+    # Install serve to serve the build
+    RUN npm install -g serve
+
+    # Expose the port the app runs on
+    EXPOSE 4000
+
+    # Run the application
+    CMD ["serve", "-s", "build"]
+    ```
+
+### Step 2: Create a `package.json` File
+
+Ensure you have a `package.json` file in your frontend directory with the necessary dependencies:
+
+    ```json
+    {
+      "name": "frontend",
+      "version": "0.0.0",
+      "private": true,
+      "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "serve": "serve -s build"
+      },
+      "dependencies": {
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0"
+      },
+      "devDependencies": {
+        "@vitejs/plugin-react": "^4.0.3",
+        "vite": "^4.4.5"
+      }
+    }
+    ```
+
+## Docker Compose
+
+To manage both the backend and frontend services, you can use Docker Compose.
+
+### Step 1: Create a `docker-compose.yml` File
+
+1. Create a file named `docker-compose.yml` in the root of your project directory.
+2. Add the following content to the `docker-compose.yml` file:
+
+    ```yaml
+    version: '3.8'
+
+    services:
+      backend:
+        build:
+          context: ./backend
+        ports:
+          - "6000:6000"
+        environment:
+          - FLASK_ENV=production
+
+      frontend:
+        build:
+          context: ./frontend
+        ports:
+          - "4000:4000"
+    ```
+
+### Step 2: Build and Run the Docker Containers
+
+1. Open a terminal and navigate to the root of your project directory.
+2. Run the following command to build and start the containers:
+
+    ```sh
+    docker-compose up --build
+    ```
+
+Your backend should now be running on `http://localhost:6000` and your frontend on `http://localhost:4000`.
+
+## Conclusion
+
+By following these steps, you have successfully created Dockerfiles for both the backend and frontend services and used Docker Compose to manage them. This setup allows you to easily build, run, and manage your application in a containerized environment.

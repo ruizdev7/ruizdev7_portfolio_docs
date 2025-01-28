@@ -1,0 +1,94 @@
+---
+title: Let's get start
+description: A personal introduction to ruizdev7.
+---
+
+**JOSE RUIZ**  
+Software Engineer | DevOps Engineer  
+Koztryn nad Odra, Poland (availability for relocation or remote work)  
+Email: ruizdev7@outlook.com  
+Phone: +48 500866813  
+[GitHub](https://github.com/Ruizdev7) | [LinkedIn](https://www.linkedin.com/in/Ruizdev7)
+
+### My Background
+
+With a solid foundation in computer science, I have been involved in various projects, from small-scale personal projects to large enterprise applications. My core competencies include:
+
+- **Frontend Development**: Crafting intuitive and responsive user interfaces using libraries like React.
+- **Backend Development**: Building reliable and scalable APIs with technologies such as Django, Fast API, and Flask.
+- **DevOps**: Implementing CI/CD pipelines, containerization with Docker, and orchestration with docker-compose or Kubernetes to streamline development and deployment processes.
+
+### My Projects
+
+Here are some notable projects I have worked on:
+
+- **Task Manager App**: A web application designed to help users efficiently manage their tasks, built with React and Node.js.
+- **E-commerce Platform**: An online shopping platform with a microservices architecture, utilizing Docker and Kubernetes for deployment.
+- **Real-time Chat Application**: A chat application that supports real-time communication using WebSocket and Flask.
+
+### My Goals
+
+I aim to continuously grow as a developer, contribute to the open-source community, and create solutions that have a positive impact. I am always open to new opportunities for collaboration and eager to hear your feedback.
+
+
+### Professional Summary
+
+Software Engineer with experience in DevOps, specializing in creating and maintaining scalable infrastructures using Kubernetes and Docker. Proficient in Python (Flask, FastAPI) and well-versed in CI/CD and process automation. Passionate about improving developer experience and optimizing workflows. Knowledgeable in AWS, Power BI, and Agile methodologies (Scrum).
+
+### Professional Experience
+
+**Plena Global Holdings – Sr Application Analyst**  
+*11 July 2022 – 05 June 2023*  
+Key Achievements:
+- Developed APIs using Python-Flask and microservices, streamlining integration and deployment in Docker containers.
+- Led a team of 3, implementing CI/CD pipelines and automating processes with Docker and Docker-Compose.
+- Collaborated with the infrastructure team to implement cloud solutions.
+- Utilized Power BI to create automated dashboards and reports, improving decision-making in various departments.
+
+Technologies Used:
+- Python (Flask), React, Docker, Docker-Compose, SQLAlchemy, AWS, Power BI, Git, Agile (Scrum), CI/CD, Postman, Newman.
+
+**Plena Global Holdings – SENA IT Apprentice**  
+*11 January 2022 – 11 July 2022*  
+Key Achievements:
+- Supported software integration and generated automated reports using Power BI.
+- Leveraged APIs and SQL Server databases to conduct detailed analysis for different departments.
+
+**Jorjweb LTDA – Technical Support Officer, Mathematics Department**  
+*13 July 2015 – 08 April 2018*  
+Key Achievements:
+- Installed and maintained the SICOOPWEB application, a financial software for Colombian financial entities.
+- Provided comprehensive technical support through phone, remote, and on-site assistance, resolving operational issues and addressing customer queries related to the software.
+- Analyzed and resolved discrepancies in financial calculations for loans, CDAT, and ATF, performing manual recalculations and verifying system outputs.
+- Diagnosed system or user errors and delivered timely solutions to customers.
+- Managed and maintained both physical and virtual client databases nationwide, ensuring data integrity and system efficiency.
+- Collaborated in the testing of new software versions, aiming to minimize errors before release to end users.
+
+### Technical Skills
+
+- **Programming Languages**: Python (FastAPI, Flask, Django)
+- **Container Tools**: Docker, Docker Compose
+- **CI/CD Tools**: Jenkins, CircleCI, Git
+- **Cloud**: AWS (good knowledge), GCP, Azure (basic knowledge)
+- **Orchestration**: Kubernetes, Helm (basic level)
+- **Scripting**: Bash
+- **Databases**: MySQL, PostgreSQL, SQLAlchemy
+- **Monitoring**: Prometheus
+- **Other**: Power BI, Agile (Scrum), Git, Linux (Ubuntu)
+
+### Certifications
+
+- PCAP: Programming Essentials in Python – Python Institute
+- AWS Fundamentals – AWS Educate
+- Azure Cloud Fundamentals – Microsoft Azure
+
+### Languages
+
+- **Spanish**: Native (C2)
+- **English**: Fluent (B2)
+- **Polish**: Basic (A1) – actively learning
+- **German**: Basic (A1) – actively learning
+
+## Further reading
+
+- Read [about how-to guides](https://diataxis.fr/how-to-guides/) in the Diátaxis framework
