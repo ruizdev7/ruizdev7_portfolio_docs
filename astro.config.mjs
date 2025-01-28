@@ -30,8 +30,8 @@ export default defineConfig({
               slug: "guides/docker_commands",
             },
             {
+              label: "Docker Container",
               slug: "guides/creating_dockerfile",
-              label: "creating-Dockerfile",
             },
           ],
         },
