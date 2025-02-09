@@ -1,14 +1,14 @@
 ---
-title: Knowledge Base
-description: Get started building my docs site with Starlight, If I'm so lazy I'm going to use the default template I don't want to hardcode colors.
+title: 'Welcome to my space'
+description: Portfolio y recursos de desarrollo de software e ingeniería DevOps. Get started building my docs site with Starlight, If I'm so lazy I'm going to use the default template I don't want to hardcode colors.
 template: splash
 hero:
-  tagline: Congrats on setting up a new Starlight project!
-  image:
-    file: ../../assets/logo_docs.png
+  tagline: '"In madness, I thought I was the most important person in the world." ~ John Forbes Nash'
+  #image:
+  #  file: ../../assets/logo_docs.png
   actions:
-    - text: Access to ruizdev7 docs
-      link: /guides/let_me_introduce_myself/
+    - text: ruizdev7 docs
+      link: /software_specifications/srs_001/
       icon: right-arrow
     - text: Follow me on LinkedIn
       link: https://www.linkedin.com/in/ruizdev7/
@@ -16,12 +16,26 @@ hero:
       variant: minimal
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
 
-## Next steps
-
-<CardGrid stagger>
-	<Card title="Contribute" icon="open-book">
-		Learn more in []().
-	</Card>
+<CardGrid>
+  <LinkCard title="Portfolio" href="/guides/authoring-content/" />
 </CardGrid>
+
+import { LinkButton } from '@astrojs/starlight/components';
+
+
+## 🛠️ Main Stack
+
+**Development:**
+- Languages: Python, Go (Learning)
+- Frontend: React, Vite, Tailwind CSS
+- Backend: Django, FastAPI, Flask, Postman, Newman, Git, 
+- Databases: Mysql, PostgreSQL, SQLAlchemy
+
+**DevOps:**
+- Cloud: AWS.
+- Containers: Docker, docker-compose, Kubernetes (Learning)
+- IaC: Terraform, CloudFormation
+- CI/CD: GitHub Actions, Jenkins, CircleCI
+- Monitoring: Prometheus, Grafana, ELK Stack

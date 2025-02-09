@@ -1,40 +1,18 @@
 // @ts-check
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
+import starlightBlog from "starlight-blog";
 
 // https://astro.build/config
 export default defineConfig({
   integrations: [
     starlight({
+      plugins: [starlightBlog()],
       title: "ruizdev7 Docs",
       social: {
         github: "https://github.com/ruizdev7",
       },
       sidebar: [
-        {
-          label: "Who I am ? 🤓",
-          items: [
-            // Each item here is one entry in the navigation menu.
-            {
-              label: "Introducction",
-              slug: "guides/let_me_introduce_myself",
-            },
-          ],
-        },
-        {
-          label: "Docker 🐳",
-          items: [
-            // Each item here is one entry in the navigation menu.
-            {
-              label: "20 Docker Commands",
-              slug: "guides/docker_commands",
-            },
-            {
-              label: "Docker Container",
-              slug: "guides/creating_dockerfile",
-            },
-          ],
-        },
         {
           label: "SRS",
           items: [
