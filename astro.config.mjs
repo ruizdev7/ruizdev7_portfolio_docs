@@ -25,6 +25,10 @@ export default defineConfig({
               label: "SRS 002",
               slug: "software_specifications/srs_002",
             },
+            {
+              label: "SRS 003",
+              slug: "software_specifications/srs_003",
+            },
           ],
         },
         {

@@ -1,0 +1,165 @@
+---
+title: Software Requirement Specification (SRS) - RBAC Implementation
+description: This document defines requirements for implementing a Role-Based Access Control (RBAC) system in a personal portfolio, ensuring secure, role-specific access to resources while complying with Canadian privacy laws.
+---
+
+import {Tabs, TabItem} from '@astrojs/starlight/components';
+
+## General Information
+
+| Field              | Detail                          |
+|--------------------|--------------------------------|
+| **Company Name**   | ruizdev7                       |
+| **Document Title** | RBAC Implementation for RuizDev7 Portfolio - SRS |
+| **Document Number**| SRS-003                       |
+| **Version**        | 1.0                            |
+| **Specification Date** | 5-Nov-24                   |
+| **Status**         | Backlog                        |
+
+## Document Approval
+
+| Role               | Name            | Date       |
+|--------------------|-----------------|------------|
+| **Project Manager** | Joseph Ruiz   | 5-Nov-24   |
+| **Technical Lead**  | Joseph Ruiz     | 5-Nov-24   |
+
+## Revision History
+
+| Version | Date       | Changes Made                     | Author        |
+|---------|------------|----------------------------------|---------------|
+| 1.0     | 5-Nov-24   | Initial RBAC Draft               | Joseph Ruiz   |
+| 1.1     | 15-Feb-25   | Adjusted roles & compliance scope| Joseph Ruiz   |
+
+## Introduction
+
+### 1.1 Purpose  
+This document defines requirements for implementing **Role-Based Access Control (RBAC)** in the ruizdev7 Portfolio, enabling secure, role-specific access while adhering to **Canadian (PIPEDA)**, **European (GDPR)**, and **Colombian (Ley 1581 de 2012)** privacy standards.
+
+### 1.2 Scope  
+The RBAC system will manage four roles (**Admin, Recruiter, Developer, Guest**) with:
+- Granular resource permissions
+- Account lifecycle management (creation/archiving)
+- MFA for Admin/Recruiter roles
+- Encrypted session logs retained for 6 months
+- Region-specific compliance:  
+  - PIPEDA for Canadian user data  
+  - GDPR for European user data  
+  - Ley 1581 for Colombian user data  
+
+### 1.3 Definitions  
+- **RBAC**: Access control based on predefined roles.  
+- **PIPEDA**: Canadian privacy law governing personal data handling.  
+- **GDPR**: European regulation for data protection and privacy.  
+- **Ley 1581**: Colombian statutory law regulating personal data processing.  
+- **Least Privilege**: Users receive minimal permissions needed for their role.  
+
+## Functional Requirements
+
+<Tabs>
+  {/* --- UC-001: Gestión de Roles --- */}
+  <TabItem label="UC-001: Role Management" value="roles">
+    <div className="use-case-content">
+
+    **Priority**: High  
+	**Description**:  
+    #### Role 1: Administrator  
+    - **Access Scope**:  
+      - Full control over CMS and user management  
+      - Configure regional compliance settings (PIPEDA/GDPR/Ley 1581)  
+    - **Restrictions**:  
+      - MFA (TOTP) mandatory  
+
+    #### Role 2: Recruiter  
+    - **Access Scope**:  
+      - Download PDF CVs  
+      - View private project case studies  
+    - **Restrictions**:  
+      - Optional IP whitelisting  
+
+    #### Role 3: Developer  
+    - **Access Scope**:  
+      - Access to code snippets and repositories  
+      - Comment on technical blog posts  
+    - **Restrictions**:  
+      - GitHub SSO required  
+      - No access to user data  
+
+    #### Role 4: Guest  
+    - **Access Scope**:  
+      - View public portfolio content  
+      - Submit contact form  
+    - **Restrictions**:  
+      - None  
+
+    </div>
+  </TabItem>
+
+  {/* --- UC-002: Autenticación Segura --- */}
+  <TabItem label="UC-002: Secure Authentication" value="auth">
+    <div className="use-case-content">
+
+    **Priority**: High  
+    **Description**:  
+    - Enforce MFA (Time-Based OTP) for Administrators and Recruiters  
+    - Encrypt credentials using `argon2id` hashing + `AES-256-GCM`  
+      - Apply to both data at rest and in transit  
+    - Session timeout: 15 minutes inactivity  
+
+    </div>
+  </TabItem>
+
+  {/* --- UC-003: Auditoría y Cumplimiento --- */}
+  <TabItem label="UC-003: Audit & Compliance" value="audit">
+    <div className="use-case-content">
+
+    **Priority**: High  
+    **Description**:  
+    - Logging Requirements:  
+      - All role changes  
+      - Data access attempts  
+      - Compliance-related actions  
+    - Metadata Tagging:  
+      - User region (CA/EU/CO)  
+      - Regulation flags (PIPEDA/GDPR/Ley 1581)  
+    - Retention Policy:  
+      - Auto-archive logs after 6 months  
+      - Immutable storage for archived logs  
+
+    </div>
+  </TabItem>
+</Tabs>
+
+
+
+## Acceptance Criteria
+
+| Criterion           | Description / Acceptance Condition |
+|---------------------|----------------------------------|
+| **Role Enforcement**| Users can ONLY access resources tied to their assigned role. |
+| **Security Protocols** | MFA required for privileged roles; data encrypted at rest/transit. |
+| **Audit Logs**      | All RBAC changes visible in logs, retained for 12+ months. |
+| **PIPEDA Compliance** | Guest/Client data deletion within 72hrs of request. |
+
+## Non-Functional Requirements
+
+| Category     | Requirement |
+|-------------|-------------|
+| **Performance** | Role validation in 500ms during peak traffic (1K+ users). |
+| **Security**    | OWASP Top 10 compliance; annual PIPEDA audits. |
+| **Availability** | 99.95% uptime for authentication services. |
+| **Usability**   | Role assignment interface usable by non-technical admins. |
+
+## Additional Information
+
+| Field        | Detail |
+|-------------|--------|
+| **Stakeholders** | RuizDev7 Team, External Auditors |
+| **Attachments** | [RBAC Flow Diagram], [PIPEDA Checklist] |
+
+## Final Approval
+
+| Name/Title            | Signature     | Date       |
+|----------------------|--------------|-----------|
+| **Client Representative** | [Signature]  | [DD/MM/YYYY] |
+| **Company Representative** | [Signature]  | [DD/MM/YYYY] |
+
