@@ -73,7 +73,7 @@ Below are key terms used in this document to ensure clarity and consistency.
 ## 2. Functional Requirements
 
 <Tabs>
-  <TabItem label="UC-004: Dropdown Menu">  
+  <TabItem value="UC-004" label="UC-004" title="UC-004">  
 
   **Priority**: High  
   **Description**: The dropdown menu in the navigation bar allows users to preview available courses within a category. It displays up to three courses per category along with a link to explore the full list.  
@@ -89,8 +89,8 @@ Below are key terms used in this document to ensure clarity and consistency.
   | **Termination Outcome**       | The dropdown menu should be hidden when not in use. |
   | **Condition Affecting Outcome** | If JavaScript is disabled, the dropdown menu may not function properly. |
   | **Use Case Description**      | When a user hovers over or clicks on a category in the navigation bar, the dropdown menu expands, showing up to three courses and a link to explore more. The menu collapses when the cursor moves away or the user clicks outside. |
-  | **Use Case Associations**     | UC-002: Keyboard Navigation |
-  | **Traceability To**           | SRS-004 |
+  | **Use Case Associations**     |  |
+  | **Traceability To**           | SRS-003 |
   | **Input Summary**             | Mouse hover, mouse click, keyboard interaction |
   | **Output Summary**            | Dropdown menu expands or collapses based on user interaction |
   | **Usability Index**           | High - Essential for smooth course exploration |
@@ -98,7 +98,7 @@ Below are key terms used in this document to ensure clarity and consistency.
 
   </TabItem>  
 
-  <TabItem label="UC-005: Search Integration">  
+  <TabItem value="UC-005" label="UC-005" title="UC-005">  
 
   **Priority**: High  
   **Description**: Allows users to type keywords in the dropdown menu to filter course categories dynamically.
@@ -123,7 +123,7 @@ Below are key terms used in this document to ensure clarity and consistency.
 
   </TabItem>
 
-  <TabItem label="UC-006: Mobile Adaptation">  
+  <TabItem value="UC-006" label="UC-006" title="UC-006">  
 
   **Priority**: High  
   **Description**: Ensures the dropdown menu functions correctly on mobile devices (e.g., touch gestures instead of hover).
@@ -148,10 +148,10 @@ Below are key terms used in this document to ensure clarity and consistency.
 
   </TabItem>
 
-  <TabItem label="UC-007: Search Integration">  
+  <TabItem value="UC-007" label="UC-007" title="UC-007">  
 
   **Priority**: High  
-  **Description**: Allows users to type keywords in the dropdown menu to filter course categories dynamically.
+  **Description**: Provides a mechanism to filter course categories dynamically within the dropdown menu, ensuring users can quickly locate relevant options based on their input.
 
   | **Field**                     | **Detail**                                                                 |
   |-------------------------------|---------------------------------------------------------------------------|
@@ -173,7 +173,7 @@ Below are key terms used in this document to ensure clarity and consistency.
 
   </TabItem>
 
-  <TabItem label="UC-008: Role-Based Course Visibility">  
+  <TabItem value="UC-008" label="UC-008" title="UC-008">  
 
   **Priority**: High  
   **Description**: Ensures different user roles (e.g., students, instructors, guests) see only relevant course categories.
@@ -198,7 +198,7 @@ Below are key terms used in this document to ensure clarity and consistency.
 
   </TabItem>
 
-  <TabItem label="UC-009: Recently Viewed Courses">  
+  <TabItem value="UC-009" label="UC-009" title="UC-009">  
 
   **Priority**: Medium  
   **Description**: Displays a section in the dropdown with the user’s recently viewed courses for quick access.
@@ -215,7 +215,7 @@ Below are key terms used in this document to ensure clarity and consistency.
   | **Condition Affecting Outcome** | If the user has not viewed any courses, the section should not appear. |
   | **Use Case Description**      | 1. The user opens the dropdown menu.<br/>2. A section labeled "Recently Viewed" is displayed at the top of the menu.<br/>3. The system shows a list of courses the user has recently accessed.<br/>4. The user can quickly click or tap on one of the courses to continue. |
   | **Use Case Associations**     | UC-011: Course Enrollment Quick Access, UC-012: Course Recommendations in Dropdown |
-  | **Traceability To**           | SRS-010 |
+  | **Traceability To**           | SRS-003 |
   | **Input Summary**             | User clicks or taps on courses they have previously viewed. |
   | **Output Summary**            | Dropdown dynamically updates to show the recently viewed courses. |
   | **Usability Index**           | Medium impact on user experience, offering quick access to previously viewed courses. |
@@ -223,7 +223,7 @@ Below are key terms used in this document to ensure clarity and consistency.
 
   </TabItem>
 
-  <TabItem label="UC-012: Course Recommendations">  
+  <TabItem value="UC-010" label="UC-010" title="UC-010">  
 
   **Priority**: Medium  
   **Description**: Uses user preferences or browsing history to recommend relevant courses directly in the dropdown.
@@ -239,8 +239,8 @@ Below are key terms used in this document to ensure clarity and consistency.
   | **Termination Outcome**       | The dropdown shows a "Recommended for You" section with relevant course suggestions. |
   | **Condition Affecting Outcome** | Insufficient user history or preferences may result in fewer or less relevant recommendations. |
   | **Use Case Description**      | 1. The user opens the dropdown menu.<br/>2. The system identifies the user’s preferences or past activity.<br/>3. A section labeled "Recommended for You" is displayed.<br/>4. The system presents courses based on the user's browsing history or preferences.<br/>5. The user clicks on a recommended course to explore it further. |
-  | **Use Case Associations**     | UC-010: Recently Viewed Courses in Dropdown, UC-011: Course Enrollment Quick Access |
-  | **Traceability To**           | SRS-012 |
+  | **Use Case Associations**     | UC-010: Recently Viewed Courses in Dropdown |
+  | **Traceability To**           | SRS-003 |
   | **Input Summary**             | User clicks or taps on a recommended course. |
   | **Output Summary**            | The dropdown shows a list of personalized course recommendations. |
   | **Usability Index**           | Medium impact on user experience by enhancing the relevance of the course menu. |
@@ -248,24 +248,36 @@ Below are key terms used in this document to ensure clarity and consistency.
 
   </TabItem>  
 
-
 </Tabs>
 
-## 3. Acceptance Criteria
+## 3. Acceptance Criteria  
 
-| Criterion           | Description / Acceptance Condition |
-|---------------------|----------------------------------|
-| AC-001              | Dropdown menu must display hierarchical course structures. |
-| AC-002              | Nested lists must render correctly with proper indentation. |
-| AC-003              | Dropdown menu must load within 2 seconds. |
+| Criterion                     | Description / Acceptance Condition |
+|--------------------------------|----------------------------------|
+| **Dropdown Expansion**         | The dropdown menu must expand when the user hovers over or clicks a category in the navigation bar. |
+| **Dropdown Collapse**          | The menu should close when the user moves the cursor away (desktop) or taps outside of it (mobile). |
+| **Course Display Limit**       | Each category must display a maximum of three courses. |
+| **Explore More Link**          | A link must be present in each category to allow users to explore the full list of courses. |
+| **Mobile Compatibility**       | The dropdown must be fully functional on mobile devices with touch interactions. |
+| **Search Functionality**       | Users should be able to filter courses using a search input field within the dropdown. |
+| **Performance Optimization**   | The dropdown should load dynamically and respond instantly to user interactions. |
+| **Responsiveness**             | The menu must work correctly across different screen sizes and orientations. |
 
-## 4. Non-Functional Requirements
 
-| Category     | Requirement |
-|-------------|-------------|
-| Usability    | The interface must follow a minimalist design with structured text. |
-| Performance  | Dropdown menu must load in under 2 seconds. |
-| Mantenibilidad | The system must validate numbering consistency in sections. |
+
+## 4. Non-Functional Requirements  
+
+| Category                 | Requirement |
+|--------------------------|-------------|
+| **Performance**         | The dropdown menu must load and respond to user interactions within 200ms. |
+| **Scalability**         | The system should support an increasing number of courses and categories without performance degradation. |
+| **Security**           | Only authorized users should be able to access certain course categories if role-based access control is implemented. |
+| **Cross-Browser Compatibility** | The dropdown should function correctly on all major browsers (Chrome, Firefox, Safari, Edge). |
+| **Mobile Responsiveness** | The dropdown menu must work smoothly on devices with different screen sizes, including smartphones and tablets. |
+| **Error Handling**     | If an error occurs while fetching course data, a fallback message must be displayed instead of breaking the UI. |
+| **Maintainability**    | The dropdown implementation should be modular, allowing easy updates and improvements without affecting other components. |
+
+
 
 ## Additional Information
 
@@ -277,5 +289,5 @@ Below are key terms used in this document to ensure clarity and consistency.
 
 | Name/Title            | Signature     | Date       |
 |----------------------|--------------|-----------|
-| Jane Doe / PM        |              | 2023-10-01 |
-| John Smith / Lead Dev|              | 2023-10-01 |
+| **Client Representative** | ruizdev7  | [DD/MM/YYYY] |
+| **Company Representative** | ruizdev7  | [DD/MM/YYYY] |

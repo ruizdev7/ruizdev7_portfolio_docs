@@ -16,32 +16,30 @@ export default defineConfig({
         {
           label: "ruizdev7 Docs",
           items: [
-            // Each item here is one entry in the navigation menu.
             {
-              label: "SRS 001",
-              slug: "software_specifications/srs_001",
+              label: "Template",
+              slug: "software_specifications/ruizdev7/template",
             },
           ],
         },
         {
           label: "Black Lantern Docs",
           items: [
-            // Each item here is one entry in the navigation menu.
             {
               label: "SRS 001",
-              slug: "software_specifications/srs_001",
+              slug: "software_specifications/black-lantern/srs_001", // Ensure this slug corresponds to an existing file or directory.
             },
             {
               label: "SRS 002",
-              slug: "software_specifications/srs_002",
+              slug: "software_specifications/black-lantern/srs_002",
             },
             {
               label: "SRS 003",
-              slug: "software_specifications/srs_003",
+              slug: "software_specifications/black-lantern/srs_003",
             },
             {
               label: "SRS 004",
-              slug: "software_specifications/srs_004",
+              slug: "software_specifications/black-lantern/srs_004",
             },
           ],
         },
