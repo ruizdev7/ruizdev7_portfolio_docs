@@ -1,82 +1,212 @@
 ---
-title: Software Requirement Specification - Registration System
-description: User account creation for [Platform Name].
+title: Software Requirement Specification (SRS) - Login Implementation
+description: This document defines requirements for implementing logging in the Black-Lantern, enabling secure, role-specific access while adhering to Canadian (PIPEDA), European (GDPR), and Colombian (Ley 1581 de 2012) privacy standards.
 ---
+
+import {Tabs, TabItem} from '@astrojs/starlight/components';
 
 ## General Information
 
 | Field              | Detail                          |
 |--------------------|--------------------------------|
-| **Company Name**   | RuizDev7                       |
-| **Document Title** | Registration System SRS        |
-| **Document Number**| REG-001                        |
-| **Version**        | 1.0                            |
-| **Specification Date** | 5-Nov-24                   |
-| **Status**         | In Progress                    |
+| **Company Name**   | Black Lantern                       |
+| **Document Title** | Login Implementation for Black Lantern - SRS |
+| **Document Number**| SRS-001                       |
+| **Version**        | 1.1                            |
+| **Specification Date** | 15-April-25                   |
+| **Status**         | Backlog                        |
 
 ## Document Approval
 
-| Role               | Name (Signature) | Date     |
-|--------------------|------------------|---------|
-| **Project Manager** | Andres Loaiza    | 2/2/25  |
-| **Client Representative** | [Name/Signature] | 2/2/25  |
+| Role               | Name            | Date       |
+|--------------------|-----------------|------------|
+| **Project Manager** | Andres Loaiza   | 01-April-25   |
+| **Tech Lead**  | Joseph Ruiz     | 01-April-25   |
 
 ## Revision History
 
-| Version | Date   | Changes Made           | Author         |
-|---------|--------|------------------------|---------------|
-| 1.0     | 2/2/25 | Initial Draft          | JOSE G RUIZ   |
+| Version | Date       | Changes Made                     | Author        |
+|---------|------------|----------------------------------|---------------|
+| 1.0     | 15-March-25   | Initial RBAC Draft               | Joseph Ruiz   |
+| 1.1     | 01-April-25   | Adjusted roles & compliance scope| Joseph Ruiz   |
 
-## Introduction
+## 1. Introduction
 
-### 1.1 Purpose  
-Define requirements for user registration, including data validation, email verification, and PIPEDA compliance.
+### 1.1 Purpose
+This document specifies the requirements for the implementation of the Black Lantern login system. 
+The objective is to ensure secure and role-specific access to the application, complying with Canadian (PIPEDA), 
+European (GDPR), and Colombian (Ley 1581 de 2012) privacy regulations.  
+The role-based access control (RBAC) system will allow user permissions to be managed, 
+ensuring that each user has access only to the functions necessary for their specific role. 
+This includes user management, application configuration, and regulatory compliance.  
+
+The RBAC system will be implemented using a "least privilege" approach, meaning users will receive 
+only the minimum permissions necessary to perform their tasks. 
+This will help reduce the risk of unauthorized access and protect sensitive company and user information.
 
 ### 1.2 Scope  
-Covers account creation, role assignment (Guest by default), and GDPR/PIPEDA-compliant data collection.
+The login system will handle the authentication and authorization processes of users, 
+ensuring that each user has access only to the functions necessary for their specific role, aiming to:  
+
+- Allow users to register  
+- Permit access to registered users  
+- MFA  
+- Encrypted session logs retained for 6 months  
+- Region-specific compliance:  
+	- PIPEDA for Canadian user data  
+	- GDPR for European user data  
+	- Ley 1581 for Colombian user data  
 
 ### 1.3 Definitions  
-- **Email Verification**: Mandatory confirmation via link/OTP.  
-- **CAPTCHA**: Bot prevention during registration.  
-- **Data Validation**: Real-time checks for email format/password strength.  
+- **RBAC**: Access control based on predefined roles.  
+- **PIPEDA**: Canadian privacy law governing personal data handling.  
+- **GDPR**: European regulation for data protection and privacy.  
+- **Ley 1581**: Colombian statutory law regulating personal data processing.  
+- **Least Privilege**: Users receive minimal permissions needed for their role.  
 
-## Functional Requirements
+## 2. Functional Requirements
 
-| ID        | Requirement Name            | Description                                           | Priority |
-|-----------|-----------------------------|-------------------------------------------------------|----------|
-| SRS-REG01 | Account Creation            | Email/password or OAuth sign-up with Guest role.      | High     |
-| SRS-REG02 | Data Validation             | Validate email format, password (8+ chars, 1 symbol/number). | High     |
-| SRS-REG03 | Email Verification          | Send confirmation link with 24h expiry.               | Medium   |
-| SRS-REG04 | Compliance                  | Collect explicit consent for data storage (PIPEDA).   | Medium   |
+<Tabs>
+  {/* --- UC-001: Role Management --- */}
+  <TabItem label="UC-001: Login">
+	<div className="">
+	**Priority**: High  
+	**Description**:  
 
-## Acceptance Criteria
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Login                           |
+	| **Subject Area**              | Security.       |
+	| **Business Event**            | This use case applies when a previously registered user wants to access the platform.                  |
+	| **Actors**                    | General user, **Black Lantern platform**.    |
+	| **Use Case Overview**         | This use case covers the process of user authentication, allowing registered users to securely access the platform. |
+	| **Preconditions**             | The user must have a registered account and valid credentials. The platform must be operational. |
+	| **Termination Outcome**       | Successful login grants access to the platform. Unsuccessful login displays an error message and logs the attempt. |
+	| **Condition Affecting Outcome** | Incorrect credentials, account lockout due to multiple failed attempts, or system downtime. |
+	| **Use Case Description**      | The user enters their credentials, which are validated by the system. If valid, the user is granted access; otherwise, an error is displayed. |
+	| **Use Case Associations**     | UC-002: Secure Authentication, UC-003: Audit & Compliance. |
+	| **Traceability To**           | SRS-001, GDPR Compliance Checklist, PIPEDA Compliance Checklist. |
+	| **Input Summary**             | Username and password entered by the user. |
+	| **Output Summary**            | Access granted message or error message displayed to the user. |
+	| **Usability Index**           | High, as login is a critical and frequently used feature. |
+	| **Use Case Notes**            | Ensure error messages do not reveal sensitive information (e.g., whether the username exists). |
+	
+	</div>
+  </TabItem>
+
+{/* --- UC-002: Secure Authentication --- */}
+<TabItem label="UC-002: Secure Authentication">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Secure Authentication                           |
+	| **Subject Area**              | Security.       |
+	| **Business Event**            | This use case applies when a user needs to authenticate securely on the platform.                  |
+	| **Actors**                    | Users **Black Lantern Platform**.    |
+	| **Use Case Overview**         | This use case covers the secure authentication process, including the implementation of MFA and credential encryption. |
+	| **Preconditions**             | The user must have a registered account, valid credentials, and access to an MFA device. |
+	| **Termination Outcome**       | Successful authentication grants secure access to the platform. Failed authentication displays an error message and logs the attempt. |
+	| **Condition Affecting Outcome** | Incorrect credentials, MFA failure, or system downtime. |
+	| **Use Case Description**      | The user enters their credentials and completes the MFA process. If valid, access is granted; otherwise, an error is displayed. |
+	| **Use Case Associations**     | UC-001: Login, UC-003: Audit and Compliance. |
+	| **Traceability To**           | SRS-001, GDPR Compliance Checklist, PIPEDA Compliance Checklist. |
+	| **Input Summary**             | Username, password, and MFA code entered by the user. |
+	| **Output Summary**            | Access granted message or error message displayed to the user. |
+	| **Usability Index**           | High, as secure authentication is a critical feature. |
+	| **Use Case Notes**            | Ensure error messages do not reveal sensitive information (e.g., whether the username exists). |
+
+	</div>
+</TabItem>
+
+{/* --- UC-003: Audit and Compliance --- */}
+<TabItem label="UC-003: Audit and Compliance">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Audit and Compliance                           |
+	| **Subject Area**              | Security and Regulations.       |
+	| **Business Event**            | This use case applies when it is necessary to log and audit actions related to roles and regulatory compliance.                  |
+	| **Actors**                    | Administrators, Auditors, **Black Lantern Platform**.    |
+	| **Use Case Overview**         | This use case covers the logging of critical events, such as role changes and data access, to ensure regulatory compliance. |
+	| **Preconditions**             | The system must be operational and configured to log events. |
+	| **Termination Outcome**       | Events are logged and securely stored for future audits. |
+	| **Condition Affecting Outcome** | Failures in the logging system or log storage. |
+	| **Use Case Description**      | The system automatically logs critical events and tags them with relevant metadata for later analysis. |
+	| **Use Case Associations**     | UC-001: Login, UC-002: Secure Authentication. |
+	| **Traceability To**           | SRS-001, GDPR Compliance Checklist, PIPEDA Compliance Checklist. |
+	| **Input Summary**             | Events generated by the system, such as role changes or data access. |
+	| **Output Summary**            | Detailed logs stored in a secure repository. |
+	| **Usability Index**           | High, as auditing is essential for regulatory compliance. |
+	| **Use Case Notes**            | Ensure logs are immutable and accessible only by authorized personnel. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-004: Sign Up Process --- */}
+<TabItem label="UC-004: Sign Up Process">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Sign Up Process                           |
+	| **Subject Area**              | User Management.       |
+	| **Business Event**            | This use case applies when a new user wants to create an account on the platform.                  |
+	| **Actors**                    | General user, **Black Lantern Platform**.    |
+	| **Use Case Overview**         | This use case covers the process of user registration, allowing new users to create an account securely. |
+	| **Preconditions**             | The platform must be operational, and the user must provide valid registration details. |
+	| **Termination Outcome**       | Successful registration creates a new user account. Unsuccessful registration displays an error message. |
+	| **Condition Affecting Outcome** | Invalid input data, duplicate accounts, or system downtime. |
+	| **Use Case Description**      | The user provides their registration details, which are validated by the system. If valid, an account is created; otherwise, an error is displayed. |
+	| **Use Case Associations**     | UC-001: Login, UC-002: Secure Authentication. |
+	| **Traceability To**           | SRS-001, GDPR Compliance Checklist, PIPEDA Compliance Checklist. |
+	| **Input Summary**             | User details such as name, email, password, and optional profile information. |
+	| **Output Summary**            | Confirmation message or error message displayed to the user. |
+	| **Usability Index**           | High, as registration is a critical entry point for new users. |
+	| **Use Case Notes**            | Ensure password strength requirements are enforced and sensitive data is encrypted during transmission and storage. |
+
+	</div>
+</TabItem>
+</Tabs>
+
+## 3. Acceptance Criteria
 
 | Criterion           | Description / Acceptance Condition |
 |---------------------|----------------------------------|
-| **Validation**      | Block invalid emails/weak passwords in real time. |
-| **CAPTCHA**         | Google reCAPTCHA v3 for bot prevention.           |
-| **Email Confirmation** | Users can’t login until email is verified.     |
-| **Data Deletion**   | Unverified accounts auto-deleted after 7 days.    |
+| **Role Enforcement**| Users can ONLY access resources tied to their assigned role. |
+| **Security Protocols** | MFA required for privileged roles; data encrypted at rest/transit. |
+| **Audit Logs**      | All RBAC changes visible in logs, retained for 12+ months. |
+| **PIPEDA Compliance** | Guest/Client data deletion within 72hrs of request. |
 
-## Non-Functional Requirements
+## 4. Non-Functional Requirements
 
 | Category     | Requirement |
 |-------------|-------------|
-| **Performance** | Registration process completes in 3s. |
-| **Security**    | No plaintext password storage (bcrypt hashing). |
-| **Availability** | 99.9% uptime for registration services. |
-| **Usability**   | Clear error messages for validation failures. |
+| **Performance** | Role validation in 500ms during peak traffic (1K+ users). |
+| **Security**    | OWASP Top 10 compliance; annual PIPEDA audits. |
+| **Availability** | 99.95% uptime for authentication services. |
+| **Usability**   | Role assignment interface usable by non-technical admins. |
 
 ## Additional Information
 
 | Field        | Detail |
 |-------------|--------|
-| **Stakeholders** | RuizDev7 Team, Legal Advisors |
-| **Attachments** | [Registration Flow], [Consent Form Template] |
+| **Stakeholders** | ruizdev7 Team, External Auditors |
+| **Attachments** | [PIPEDA Checklist] |
 
 ## Final Approval
 
 | Name/Title            | Signature     | Date       |
 |----------------------|--------------|-----------|
-| **Client Representative** | [Signature]  | [DD/MM/YYYY] |
-| **Company Representative** | [Signature]  | [DD/MM/YYYY] |
+| **Client Representative** | ruizdev7  | [DD/MM/YYYY] |
+| **Company Representative** | ruizdev7  | [DD/MM/YYYY] |

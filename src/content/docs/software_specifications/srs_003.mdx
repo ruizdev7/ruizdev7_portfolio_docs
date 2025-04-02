@@ -1,6 +1,6 @@
 ---
-title: Software Requirement Specification (SRS) - RBAC Implementation
-description: This document defines requirements for implementing a Role-Based Access Control (RBAC) system in a personal portfolio, ensuring secure, role-specific access to resources while complying with Canadian privacy laws.
+title: Software Requirement Specification (SRS) - Dropdown Menu Implementation for courses catalog
+description: This document defines the requirements for implementing a dropdown menu in the "My Learning" application, specifically for the "Learning Catalog" view. The dropdown menu will enhance navigation and user experience while adhering to accessibility and usability standards.
 ---
 
 import {Tabs, TabItem} from '@astrojs/starlight/components';
@@ -9,157 +9,273 @@ import {Tabs, TabItem} from '@astrojs/starlight/components';
 
 | Field              | Detail                          |
 |--------------------|--------------------------------|
-| **Company Name**   | ruizdev7                       |
-| **Document Title** | RBAC Implementation for ruizdev7 Portfolio - SRS |
+| **Company Name**   | Black Lantern                       |
+| **Document Title** | Dropdown Menu for Black Lantern Users - SRS |
 | **Document Number**| SRS-003                       |
 | **Version**        | 1.0                            |
-| **Specification Date** | 5-Nov-24                   |
+| **Specification Date** | 01-April-25                   |
 | **Status**         | Backlog                        |
 
 ## Document Approval
 
 | Role               | Name            | Date       |
 |--------------------|-----------------|------------|
-| **Project Manager** | Joseph Ruiz   | 5-Nov-24   |
-| **Technical Lead**  | Joseph Ruiz     | 5-Nov-24   |
+| **Project Manager** | Andres Loaiza   | 01-April-25   |
+| **Tech Lead**  | Joseph Ruiz     | 01-April-25   |
 
 ## Revision History
 
 | Version | Date       | Changes Made                     | Author        |
 |---------|------------|----------------------------------|---------------|
-| 1.0     | 5-Nov-24   | Initial RBAC Draft               | Joseph Ruiz   |
-| 1.1     | 15-Feb-25   | Adjusted roles & compliance scope| Joseph Ruiz   |
+| 1.0     | 15-March-25   | Initial SRS Draft               | Joseph Ruiz   |
 
-## Introduction
+## 1. Introduction
 
-### 1.1 Purpose  
-This document defines requirements for implementing **Role-Based Access Control (RBAC)** in the ruizdev7 Portfolio, enabling secure, role-specific access while adhering to **Canadian (PIPEDA)**, **European (GDPR)**, and **Colombian (Ley 1581 de 2012)** privacy standards.
+### 1.1 Purpose
 
-### 1.2 Scope  
-The RBAC system will manage four roles (**Admin, Recruiter, Developer, Guest**) with:
-- Granular resource permissions
-- Account lifecycle management (creation/archiving)
-- MFA for Admin/Recruiter roles
-- Encrypted session logs retained for 6 months
-- Region-specific compliance:  
-  - PIPEDA for Canadian user data  
-  - GDPR for European user data  
-  - Ley 1581 for Colombian user data  
+The purpose of this document is to define the software requirements for implementing a dropdown menu within the Black Lantern platform. 
+This menu will display the catalog of available courses, providing users with an organized and accessible way to navigate and explore educational content. 
+The implementation aims to enhance user experience by ensuring intuitive navigation, dynamic content updates, and compliance with accessibility standards.
 
-### 1.3 Definitions  
-- **RBAC**: Access control based on predefined roles.  
-- **PIPEDA**: Canadian privacy law governing personal data handling.  
-- **GDPR**: European regulation for data protection and privacy.  
-- **Ley 1581**: Colombian statutory law regulating personal data processing.  
-- **Least Privilege**: Users receive minimal permissions needed for their role.  
+### 1.2 Scope
+The dropdown menu functionality will provide users with an intuitive and efficient way to navigate the "Learning Catalog" section of the application. 
+It will allow users to view and select courses organized hierarchically into categories, modules, and submodules. The menu will support dynamic content loading, 
+ensuring that updates to the catalog are reflected in real-time. Additionally, the dropdown menu will adhere to accessibility standards, 
+ensuring usability for all users, including those with disabilities. This feature aims to enhance the user experience by simplifying navigation 
+and improving the discoverability of educational content.
 
-## Functional Requirements
+The dropdown menu will be integrated into the **top navigation bar** of the course catalog section on the platform. 
+It will provide users with a **quick preview** of available courses, categorized by subject areas, without 
+requiring a full-page reload.  
+
+### 1.3 Key Features in Scope  
+- **Navigation Efficiency:** Users can browse courses seamlessly without disrupting their workflow.  
+- **Categorization:** Courses will be grouped into predefined subject areas for easier exploration.  
+- **User Accessibility:** The menu will be accessible via both mouse and keyboard navigation.  
+- **Dynamic Content:** The menu should update dynamically based on the latest course offerings.  
+- **Limited Course Display:** Each category will display a maximum of **three** courses, along with a **link to explore the full list** of courses within that category.  
+
+### 1.4 Out of Scope  
+- **Course Enrollment:** The dropdown menu will not handle course registration; it is strictly for exploration.  
+- **Full Course Details:** Users must navigate to the course page for comprehensive information.  
+
+
+### 1.5 Definitions
+Below are key terms used in this document to ensure clarity and consistency.  
+
+- **Dropdown Menu:** A UI component that expands when interacted with, displaying a list of options.  
+- **Navigation Bar:** The top section of the platform that contains primary navigation links.  
+- **Course Catalog:** A section of the platform where available courses are listed and categorized.  
+- **Category:** A predefined grouping of related courses.  
+- **Dynamic Content:** Information that updates in real-time based on available data.  
+- **Exploration Link:** A link in the dropdown menu that redirects users to the full list of courses within a category.
+
+## 2. Functional Requirements
 
 <Tabs>
-  {/* --- UC-001: Gestión de Roles --- */}
-  <TabItem label="UC-001: Role Management" value="roles">
-    <div className="use-case-content">
+  <TabItem label="UC-004: Dropdown Menu">  
 
-    **Priority**: High  
-	**Description**:  
-    #### Role 1: Administrator  
-    - **Access Scope**:  
-      - Full control over CMS and user management  
-      - Configure regional compliance settings (PIPEDA/GDPR/Ley 1581)  
-    - **Restrictions**:  
-      - MFA (TOTP) mandatory  
+  **Priority**: High  
+  **Description**: The dropdown menu in the navigation bar allows users to preview available courses within a category. It displays up to three courses per category along with a link to explore the full list.  
 
-    #### Role 2: Recruiter  
-    - **Access Scope**:  
-      - Download PDF CVs  
-      - View private project case studies  
-    - **Restrictions**:  
-      - Optional IP whitelisting  
+  | **Field**                     | **Detail**                                                                 |
+  |-------------------------------|---------------------------------------------------------------------------|
+  | **Use Case Name**             | Dropdown Menu Implementation for Courses Catalog |
+  | **Subject Area**              | UI/UX - Navigation |
+  | **Business Event**            | User interacts with the navigation bar to explore courses |
+  | **Actors**                    | Platform users |
+  | **Use Case Overview**         | Users should be able to access a preview of course offerings categorized by subject area using the dropdown menu. |
+  | **Preconditions**             | The user must be on a page where the navigation menu is visible. |
+  | **Termination Outcome**       | The dropdown menu should be hidden when not in use. |
+  | **Condition Affecting Outcome** | If JavaScript is disabled, the dropdown menu may not function properly. |
+  | **Use Case Description**      | When a user hovers over or clicks on a category in the navigation bar, the dropdown menu expands, showing up to three courses and a link to explore more. The menu collapses when the cursor moves away or the user clicks outside. |
+  | **Use Case Associations**     | UC-002: Keyboard Navigation |
+  | **Traceability To**           | SRS-004 |
+  | **Input Summary**             | Mouse hover, mouse click, keyboard interaction |
+  | **Output Summary**            | Dropdown menu expands or collapses based on user interaction |
+  | **Usability Index**           | High - Essential for smooth course exploration |
+  | **Use Case Notes**            | This feature should be optimized for responsiveness and accessibility. |
 
-    #### Role 3: Developer  
-    - **Access Scope**:  
-      - Access to code snippets and repositories  
-      - Comment on technical blog posts  
-    - **Restrictions**:  
-      - GitHub SSO required  
-      - No access to user data  
+  </TabItem>  
 
-    #### Role 4: Guest  
-    - **Access Scope**:  
-      - View public portfolio content  
-      - Submit contact form  
-    - **Restrictions**:  
-      - None  
+  <TabItem label="UC-005: Search Integration">  
 
-    </div>
+  **Priority**: High  
+  **Description**: Allows users to type keywords in the dropdown menu to filter course categories dynamically.
+
+  | **Field**                     | **Detail**                                                                 |
+  |-------------------------------|---------------------------------------------------------------------------|
+  | **Use Case Name**             | Search Integration in the Dropdown Menu |
+  | **Subject Area**              | User Interface (UI) / Search Functionality |
+  | **Business Event**            | User starts typing in the dropdown to filter course categories |
+  | **Actors**                    | End users (students, instructors, guests) |
+  | **Use Case Overview**         | Users can type keywords in a search field within the dropdown to filter available course categories in real-time. |
+  | **Preconditions**             | The dropdown menu is open and visible to the user. |
+  | **Termination Outcome**       | The dropdown updates to show only the course categories that match the user's search. |
+  | **Condition Affecting Outcome** | Slow network connection may cause delay in real-time filtering. |
+  | **Use Case Description**      | 1. The user clicks or taps on the dropdown menu to open it.<br/>2. A search input field is visible at the top of the dropdown.<br/>3. The user types keywords into the search field.<br/>4. The dropdown dynamically filters and shows relevant course categories based on the input.<br/>5. The user selects a category from the filtered list. |
+  | **Use Case Associations**     | UC-006: Mobile Adaptation of the Dropdown Menu, UC-007: User Role-Based Course Visibility |
+  | **Traceability To**           | SRS-005 |
+  | **Input Summary**             | Keywords typed into the search input field. |
+  | **Output Summary**            | Dropdown dynamically filters and displays the relevant course categories. |
+  | **Usability Index**           | High impact on user experience by providing a quick and intuitive way to find categories. |
+  | **Use Case Notes**            | Consider implementing a debounce mechanism to optimize performance and avoid unnecessary filtering. |
+
   </TabItem>
 
-  {/* --- UC-002: Autenticación Segura --- */}
-  <TabItem label="UC-002: Secure Authentication" value="auth">
-    <div className="use-case-content">
+  <TabItem label="UC-006: Mobile Adaptation">  
 
-    **Priority**: High  
-    **Description**:  
-    - Enforce MFA (Time-Based OTP) for Administrators and Recruiters  
-    - Encrypt credentials using `argon2id` hashing + `AES-256-GCM`  
-      - Apply to both data at rest and in transit  
-    - Session timeout: 15 minutes inactivity  
+  **Priority**: High  
+  **Description**: Ensures the dropdown menu functions correctly on mobile devices (e.g., touch gestures instead of hover).
 
-    </div>
+  | **Field**                     | **Detail**                                                                 |
+  |-------------------------------|---------------------------------------------------------------------------|
+  | **Use Case Name**             | Mobile Adaptation of the Dropdown Menu |
+  | **Subject Area**              | User Interface (UI) / Mobile Experience |
+  | **Business Event**            | User accesses the dropdown menu on a mobile device |
+  | **Actors**                    | End users (students, instructors, guests) |
+  | **Use Case Overview**         | The dropdown menu should be optimized for touch gestures on mobile devices, ensuring smooth interaction without hover functionality. |
+  | **Preconditions**             | The user is on a mobile device and the dropdown menu is visible. |
+  | **Termination Outcome**       | The dropdown menu activates upon tap and displays the relevant categories. |
+  | **Condition Affecting Outcome** | Device screen size and performance could impact the responsiveness of the dropdown. |
+  | **Use Case Description**      | 1. The user taps on the dropdown menu to open it.<br/>2. The menu should appear with no hover-based interactions.<br/>3. The dropdown items should be tappable and easy to navigate.<br/>4. The dropdown should close when the user taps outside or selects an option. |
+  | **Use Case Associations**     | UC-005: Search Integration in the Dropdown Menu, UC-007: User Role-Based Course Visibility |
+  | **Traceability To**           | SRS-006 |
+  | **Input Summary**             | Tap or touch gestures on mobile screen. |
+  | **Output Summary**            | The dropdown opens and closes correctly, with a touch-friendly interface. |
+  | **Usability Index**           | High impact on mobile user experience by ensuring touch interactions are seamless. |
+  | **Use Case Notes**            | Ensure that the dropdown functions well on a variety of screen sizes and mobile platforms (iOS/Android). |
+
   </TabItem>
 
-  {/* --- UC-003: Auditoría y Cumplimiento --- */}
-  <TabItem label="UC-003: Audit & Compliance" value="audit">
-    <div className="use-case-content">
+  <TabItem label="UC-007: Search Integration">  
 
-    **Priority**: High  
-    **Description**:  
-    - Logging Requirements:  
-      - All role changes  
-      - Data access attempts  
-      - Compliance-related actions  
-    - Metadata Tagging:  
-      - User region (CA/EU/CO)  
-      - Regulation flags (PIPEDA/GDPR/Ley 1581)  
-    - Retention Policy:  
-      - Auto-archive logs after 6 months  
-      - Immutable storage for archived logs  
+  **Priority**: High  
+  **Description**: Allows users to type keywords in the dropdown menu to filter course categories dynamically.
 
-    </div>
+  | **Field**                     | **Detail**                                                                 |
+  |-------------------------------|---------------------------------------------------------------------------|
+  | **Use Case Name**             | Search Integration in the Dropdown Menu |
+  | **Subject Area**              | User Interface (UI) / Search Functionality |
+  | **Business Event**            | User starts typing in the dropdown to filter course categories |
+  | **Actors**                    | End users (students, instructors, guests) |
+  | **Use Case Overview**         | Users can type keywords in a search field within the dropdown to filter available course categories in real-time. |
+  | **Preconditions**             | The dropdown menu is open and visible to the user. |
+  | **Termination Outcome**       | The dropdown updates to show only the course categories that match the user's search. |
+  | **Condition Affecting Outcome** | Slow network connection may cause delay in real-time filtering. |
+  | **Use Case Description**      | 1. The user clicks or taps on the dropdown menu to open it.<br />2. A search input field is visible at the top of the dropdown.<br />3. The user types keywords into the search field.<br />4. The dropdown dynamically filters and shows relevant course categories based on the input.<br />5. The user selects a category from the filtered list. |
+  | **Use Case Associations**     | UC-006: Mobile Adaptation of the Dropdown Menu, UC-008: User Role-Based Course Visibility |
+  | **Traceability To**           | SRS-007 |
+  | **Input Summary**             | Keywords typed into the search input field. |
+  | **Output Summary**            | Dropdown dynamically filters and displays the relevant course categories. |
+  | **Usability Index**           | High impact on user experience by providing a quick and intuitive way to find categories. |
+  | **Use Case Notes**            | Consider implementing a debounce mechanism to optimize performance and avoid unnecessary filtering. |
+
   </TabItem>
+
+  <TabItem label="UC-008: Role-Based Course Visibility">  
+
+  **Priority**: High  
+  **Description**: Ensures different user roles (e.g., students, instructors, guests) see only relevant course categories.
+
+  | **Field**                     | **Detail**                                                                 |
+  |-------------------------------|---------------------------------------------------------------------------|
+  | **Use Case Name**             | User Role-Based Course Visibility |
+  | **Subject Area**              | User Interface (UI) / Role Management |
+  | **Business Event**            | User logs in and accesses the dropdown menu |
+  | **Actors**                    | End users (students, instructors, guests) |
+  | **Use Case Overview**         | Based on the user's role, only relevant course categories will be shown in the dropdown. |
+  | **Preconditions**             | The user is logged in and has a defined role (student, instructor, or guest). |
+  | **Termination Outcome**       | The dropdown displays categories tailored to the user's role, excluding irrelevant ones. |
+  | **Condition Affecting Outcome** | Incorrect user role assignment could lead to inappropriate visibility of categories. |
+  | **Use Case Description**      | 1. The user logs in and the system identifies their role.<br/>2. The user accesses the dropdown menu.<br/>3. The system displays only the course categories that match the user's role.<br/> 4. For example, students will only see student courses, while instructors may also see admin or unpublished courses. |
+  | **Use Case Associations**     | UC-005: Search Integration in the Dropdown Menu, UC-009: Accessibility Support for Screen Readers |
+  | **Traceability To**           | SRS-008 |
+  | **Input Summary**             | User login and role identification. |
+  | **Output Summary**            | Dropdown shows only the relevant course categories based on the user’s role. |
+  | **Usability Index**           | High impact on user experience, as it ensures a clean and relevant interface. |
+  | **Use Case Notes**            | Make sure role assignments are accurate and updated to avoid incorrect visibility of categories. |
+
+  </TabItem>
+
+  <TabItem label="UC-009: Recently Viewed Courses">  
+
+  **Priority**: Medium  
+  **Description**: Displays a section in the dropdown with the user’s recently viewed courses for quick access.
+
+  | **Field**                     | **Detail**                                                                 |
+  |-------------------------------|---------------------------------------------------------------------------|
+  | **Use Case Name**             | Recently Viewed Courses in Dropdown |
+  | **Subject Area**              | User Interface (UI) / User History |
+  | **Business Event**            | User accesses the dropdown menu |
+  | **Actors**                    | End users (students, instructors, guests) |
+  | **Use Case Overview**         | Displays recently viewed courses at the top of the dropdown for easy access. |
+  | **Preconditions**             | The user has viewed at least one course in the past. |
+  | **Termination Outcome**       | The dropdown shows a "Recently Viewed" section with the relevant courses. |
+  | **Condition Affecting Outcome** | If the user has not viewed any courses, the section should not appear. |
+  | **Use Case Description**      | 1. The user opens the dropdown menu.<br/>2. A section labeled "Recently Viewed" is displayed at the top of the menu.<br/>3. The system shows a list of courses the user has recently accessed.<br/>4. The user can quickly click or tap on one of the courses to continue. |
+  | **Use Case Associations**     | UC-011: Course Enrollment Quick Access, UC-012: Course Recommendations in Dropdown |
+  | **Traceability To**           | SRS-010 |
+  | **Input Summary**             | User clicks or taps on courses they have previously viewed. |
+  | **Output Summary**            | Dropdown dynamically updates to show the recently viewed courses. |
+  | **Usability Index**           | Medium impact on user experience, offering quick access to previously viewed courses. |
+  | **Use Case Notes**            | The list should be limited to a manageable number of courses (e.g., 5-10). |
+
+  </TabItem>
+
+  <TabItem label="UC-012: Course Recommendations">  
+
+  **Priority**: Medium  
+  **Description**: Uses user preferences or browsing history to recommend relevant courses directly in the dropdown.
+
+  | **Field**                     | **Detail**                                                                 |
+  |-------------------------------|---------------------------------------------------------------------------|
+  | **Use Case Name**             | Course Recommendations in Dropdown |
+  | **Subject Area**              | User Interface (UI) / Recommendation System |
+  | **Business Event**            | User accesses the dropdown menu |
+  | **Actors**                    | End users (students, instructors, guests) |
+  | **Use Case Overview**         | Displays course recommendations within the dropdown based on the user's history or preferences. |
+  | **Preconditions**             | The user has interacted with courses in the past (viewed or enrolled). |
+  | **Termination Outcome**       | The dropdown shows a "Recommended for You" section with relevant course suggestions. |
+  | **Condition Affecting Outcome** | Insufficient user history or preferences may result in fewer or less relevant recommendations. |
+  | **Use Case Description**      | 1. The user opens the dropdown menu.<br/>2. The system identifies the user’s preferences or past activity.<br/>3. A section labeled "Recommended for You" is displayed.<br/>4. The system presents courses based on the user's browsing history or preferences.<br/>5. The user clicks on a recommended course to explore it further. |
+  | **Use Case Associations**     | UC-010: Recently Viewed Courses in Dropdown, UC-011: Course Enrollment Quick Access |
+  | **Traceability To**           | SRS-012 |
+  | **Input Summary**             | User clicks or taps on a recommended course. |
+  | **Output Summary**            | The dropdown shows a list of personalized course recommendations. |
+  | **Usability Index**           | Medium impact on user experience by enhancing the relevance of the course menu. |
+  | **Use Case Notes**            | Consider machine learning or algorithmic recommendations based on user behavior. |
+
+  </TabItem>  
+
+
 </Tabs>
 
-
-
-## Acceptance Criteria
+## 3. Acceptance Criteria
 
 | Criterion           | Description / Acceptance Condition |
 |---------------------|----------------------------------|
-| **Role Enforcement**| Users can ONLY access resources tied to their assigned role. |
-| **Security Protocols** | MFA required for privileged roles; data encrypted at rest/transit. |
-| **Audit Logs**      | All RBAC changes visible in logs, retained for 12+ months. |
-| **PIPEDA Compliance** | Guest/Client data deletion within 72hrs of request. |
+| AC-001              | Dropdown menu must display hierarchical course structures. |
+| AC-002              | Nested lists must render correctly with proper indentation. |
+| AC-003              | Dropdown menu must load within 2 seconds. |
 
-## Non-Functional Requirements
+## 4. Non-Functional Requirements
 
 | Category     | Requirement |
 |-------------|-------------|
-| **Performance** | Role validation in 500ms during peak traffic (1K+ users). |
-| **Security**    | OWASP Top 10 compliance; annual PIPEDA audits. |
-| **Availability** | 99.95% uptime for authentication services. |
-| **Usability**   | Role assignment interface usable by non-technical admins. |
+| Usability    | The interface must follow a minimalist design with structured text. |
+| Performance  | Dropdown menu must load in under 2 seconds. |
+| Mantenibilidad | The system must validate numbering consistency in sections. |
 
 ## Additional Information
 
 | Field        | Detail |
 |-------------|--------|
-| **Stakeholders** | ruizdev7 Team, External Auditors |
-| **Attachments** | [PIPEDA Checklist] |
+| Related Docs | User Interface Guidelines, Accessibility Standards |
 
 ## Final Approval
 
 | Name/Title            | Signature     | Date       |
 |----------------------|--------------|-----------|
-| **Client Representative** | ruizdev7  | [DD/MM/YYYY] |
-| **Company Representative** | ruizdev7  | [DD/MM/YYYY] |
-
+| Jane Doe / PM        |              | 2023-10-01 |
+| John Smith / Lead Dev|              | 2023-10-01 |

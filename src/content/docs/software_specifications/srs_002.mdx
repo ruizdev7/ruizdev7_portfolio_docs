@@ -1,82 +1,175 @@
 ---
-title: Software Requirement Specification - Login System
-description: Secure user authentication for [Platform Name].
+title: Software Requirement Specification (SRS) - Vista de "My Learning"
+description: This document defines requirements for implementing the "My Learning" view in the application, enabling users to track their progress, achievements, and upcoming assignments in a user-friendly and secure manner.
 ---
+
+import {Tabs, TabItem} from '@astrojs/starlight/components';
 
 ## General Information
 
 | Field              | Detail                          |
 |--------------------|--------------------------------|
-| **Company Name**   | RuizDev7                       |
-| **Document Title** | Login System SRS               |
-| **Document Number**| AUTH-001                       |
+| **Company Name**   | Black Lantern                       |
+| **Document Title** | Vista de "My Learning" for Black Lantern Users - SRS |
+| **Document Number**| SRS-002                       |
 | **Version**        | 1.0                            |
-| **Specification Date** | 5-Nov-24                   |
-| **Status**         | In Progress                    |
+| **Specification Date** | 01-April-25                   |
+| **Status**         | Backlog                        |
 
 ## Document Approval
 
-| Role               | Name (Signature) | Date     |
-|--------------------|------------------|---------|
-| **Project Manager** | Andres Loaiza    | 2/2/25  |
-| **Client Representative** | [Name/Signature] | 2/2/25  |
+| Role               | Name            | Date       |
+|--------------------|-----------------|------------|
+| **Project Manager** | Andres Loaiza   | 01-April-25   |
+| **Tech Lead**  | Joseph Ruiz     | 01-April-25   |
 
 ## Revision History
 
-| Version | Date   | Changes Made           | Author         |
-|---------|--------|------------------------|---------------|
-| 1.0     | 2/2/25 | Initial Draft          | JOSE G RUIZ   |
+| Version | Date       | Changes Made                     | Author        |
+|---------|------------|----------------------------------|---------------|
+| 1.0     | 15-March-25   | Initial SRS Draft               | Joseph Ruiz   |
 
-## Introduction
+## 1. Introduction
 
-### 1.1 Purpose  
-Define requirements for a secure login system supporting email/password, OAuth, and MFA, ensuring compliance with PIPEDA.
+### 1.1 Purpose
+This document specifies the requirements for the implementation of the "My Learning" view in the Black Lantern application.  
+The objective is to provide users with a centralized interface to track their ongoing courses, achievements, and upcoming assignments.  
+The view will enhance user experience by offering two visualization modes (card and list) for courses in progress, a section for completed course badges, and a component for upcoming assignments.
 
 ### 1.2 Scope  
-Covers user authentication, session management, brute-force protection, and integration with RBAC roles.
+The "My Learning" view will include the following components:  
+
+- **Courses in Progress**: Display all courses currently in progress with two visualization modes: card and list.  
+- **Achievements**: Showcase badges earned for completed courses.  
+- **Upcoming Assignments**: Display reminders for upcoming meetings or activities assigned during the courses.  
+
+The implementation will ensure compliance with privacy regulations, including:  
+- PIPEDA for Canadian user data  
+- GDPR for European user data  
+- Ley 1581 for Colombian user data  
 
 ### 1.3 Definitions  
-- **MFA**: Multi-factor authentication (e.g., SMS, authenticator apps).  
-- **OAuth**: Third-party login (Google, GitHub).  
-- **Session Management**: Token-based user session control.  
+- **Card View**: A visual representation of courses in a card format, showing key details like course name, progress, and instructor.  
+- **List View**: A tabular representation of courses with sortable columns for details like progress and deadlines.  
+- **Badges**: Visual indicators representing achievements for completed courses.  
+- **Upcoming Assignments**: A list of scheduled meetings or reminders for activities assigned during the courses.  
 
-## Functional Requirements
+## 2. Functional Requirements
 
-| ID        | Requirement Name            | Description                                           | Priority |
-|-----------|-----------------------------|-------------------------------------------------------|----------|
-| SRS-LOG01 | Authentication Methods      | Support email/password, OAuth, and MFA.               | High     |
-| SRS-LOG02 | Session Management          | JWT tokens with 24h expiry and renewal mechanism.     | High     |
-| SRS-LOG03 | Security Controls           | Rate limiting (5 attempts) and CAPTCHA for failed logins. | Medium   |
-| SRS-LOG04 | Error Handling              | Generic error messages to avoid exposing system details. | Low      |
+<Tabs>
+	{/* --- UC-001: Courses in Progress --- */}
+	<TabItem label="UC-001: Courses in Progress">
+	<div className="use-case-content">
 
-## Acceptance Criteria
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Courses in Progress                           |
+	| **Subject Area**              | Learning Management.       |
+	| **Business Event**            | This use case applies when a user wants to view their ongoing courses.                  |
+	| **Actors**                    | General user, **Black Lantern Platform**.    |
+	| **Use Case Overview**         | This use case covers the display of all courses in progress, allowing users to switch between card and list views. |
+	| **Preconditions**             | The user must have at least one course in progress. |
+	| **Termination Outcome**       | The user can view their courses in the selected visualization mode. |
+	| **Condition Affecting Outcome** | No courses in progress or system downtime. |
+	| **Use Case Description**      | The system retrieves the user's ongoing courses and displays them in the selected view (card or list). |
+	| **Use Case Associations**     | UC-002: Achievements, UC-003: Upcoming Assignments. |
+	| **Traceability To**           | SRS-002, GDPR Compliance Checklist, PIPEDA Compliance Checklist. |
+	| **Input Summary**             | User's course data and selected visualization mode. |
+	| **Output Summary**            | Courses displayed in the chosen format. |
+	| **Usability Index**           | High, as this is a core feature of the "My Learning" view. |
+	| **Use Case Notes**            | Ensure the interface is responsive and accessible. |
+
+	</div>
+	</TabItem>
+
+{/* --- UC-002: Achievements --- */}
+<TabItem label="UC-002: Achievements">
+	<div className="use-case-content">
+
+	**Priority**: Medium  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Achievements                           |
+	| **Subject Area**              | Learning Management.       |
+	| **Business Event**            | This use case applies when a user wants to view their earned badges for completed courses.                  |
+	| **Actors**                    | General user, **Black Lantern Platform**.    |
+	| **Use Case Overview**         | This use case covers the display of badges representing completed courses. |
+	| **Preconditions**             | The user must have completed at least one course. |
+	| **Termination Outcome**       | The user can view their earned badges. |
+	| **Condition Affecting Outcome** | No completed courses or system downtime. |
+	| **Use Case Description**      | The system retrieves the user's completed courses and displays the corresponding badges. |
+	| **Use Case Associations**     | UC-001: Courses in Progress, UC-003: Upcoming Assignments. |
+	| **Traceability To**           | SRS-002, GDPR Compliance Checklist, PIPEDA Compliance Checklist. |
+	| **Input Summary**             | User's completed course data. |
+	| **Output Summary**            | Badges displayed in the achievements section. |
+	| **Usability Index**           | Medium, as this enhances user motivation. |
+	| **Use Case Notes**            | Ensure badges are visually appealing and categorized. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-003: Upcoming Assignments --- */}
+<TabItem label="UC-003: Upcoming Assignments">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Upcoming Assignments                           |
+	| **Subject Area**              | Learning Management.       |
+	| **Business Event**            | This use case applies when a user wants to view reminders for upcoming meetings or activities.                  |
+	| **Actors**                    | General user, **Black Lantern Platform**.    |
+	| **Use Case Overview**         | This use case covers the display of upcoming assignments, including meetings and activity reminders. |
+	| **Preconditions**             | The user must have at least one upcoming assignment. |
+	| **Termination Outcome**       | The user can view their upcoming assignments. |
+	| **Condition Affecting Outcome** | No upcoming assignments or system downtime. |
+	| **Use Case Description**      | The system retrieves the user's upcoming assignments and displays them in a chronological list. |
+	| **Use Case Associations**     | UC-001: Courses in Progress, UC-002: Achievements. |
+	| **Traceability To**           | SRS-002, GDPR Compliance Checklist, PIPEDA Compliance Checklist. |
+	| **Input Summary**             | User's assignment data. |
+	| **Output Summary**            | Assignments displayed in a chronological list. |
+	| **Usability Index**           | High, as this helps users stay organized. |
+	| **Use Case Notes**            | Ensure reminders are clear and include relevant details like deadlines and meeting links. |
+
+	</div>
+</TabItem>
+</Tabs>
+
+## 3. Acceptance Criteria
 
 | Criterion           | Description / Acceptance Condition |
 |---------------------|----------------------------------|
-| **Integration**     | Seamless redirect to RBAC-authorized dashboard post-login. |
-| **MFA Setup**       | Users with privileged roles (Admin/Client) must enable MFA. |
-| **Session Expiry**  | Automatic logout after 30m inactivity.                      |
-| **Security Logs**   | Failed login attempts logged with IP/timestamp.             |
+| **Visualization Modes** | Users can switch between card and list views for courses in progress. |
+| **Achievements Display** | Badges for completed courses are visible and categorized. |
+| **Assignment Reminders** | Upcoming assignments are displayed with clear deadlines and details. |
+| **Data Privacy**    | User data complies with PIPEDA, GDPR, and Ley 1581 standards. |
 
-## Non-Functional Requirements
+## 4. Non-Functional Requirements
 
 | Category     | Requirement |
 |-------------|-------------|
-| **Performance** | Login response time 1s under 5K concurrent users. |
-| **Security**    | OWASP ASVS compliance; AES-256 encryption for tokens. |
-| **Availability** | 99.9% uptime excluding maintenance windows. |
-| **Usability**   | Password recovery via email within 2 clicks. |
+| **Performance** | Course data retrieval in under 1 second during peak traffic (1K+ users). |
+| **Security**    | OWASP Top 10 compliance; annual PIPEDA audits. |
+| **Availability** | 99.95% uptime for the "My Learning" view. |
+| **Usability**   | Intuitive interface for switching between visualization modes. |
 
 ## Additional Information
 
 | Field        | Detail |
 |-------------|--------|
-| **Stakeholders** | RuizDev7 Team, Security Auditors |
-| **Attachments** | [Login Flow Diagram], [OAuth Provider List] |
+| **Stakeholders** | ruizdev7 Team, External Auditors |
+| **Attachments** | [PIPEDA Checklist] |
 
 ## Final Approval
 
 | Name/Title            | Signature     | Date       |
 |----------------------|--------------|-----------|
-| **Client Representative** | [Signature]  | [DD/MM/YYYY] |
-| **Company Representative** | [Signature]  | [DD/MM/YYYY] |
+| **Client Representative** | ruizdev7  | [DD/MM/YYYY] |
+| **Company Representative** | ruizdev7  | [DD/MM/YYYY] |

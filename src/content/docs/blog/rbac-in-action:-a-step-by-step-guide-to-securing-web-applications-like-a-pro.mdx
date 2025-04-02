@@ -21,7 +21,13 @@ mediante la manipulación de URL? ¿Cómo puedo garantizar que los usuarios
 autenticados no puedan acceder a rutas protegidas si no tienen los permisos
 necesarios?
 
-revisemos primero el modelo entidad relacion de la base de datos
+Revisemos primero el modelo entidad relacion de la base de datos
+
+Definamos inicialmente algunas tablas y sus relaciones yo los llamaria 
+`tbl_users`, `tbl_roles`, `tbl_permissions`, `tbl_user_roles`, `tbl_role_permissions`
+
+
+
 
 ```python
 from datetime import datetime

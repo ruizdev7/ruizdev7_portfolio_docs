@@ -14,7 +14,17 @@ export default defineConfig({
       },
       sidebar: [
         {
-          label: "SRS",
+          label: "ruizdev7 Docs",
+          items: [
+            // Each item here is one entry in the navigation menu.
+            {
+              label: "SRS 001",
+              slug: "software_specifications/srs_001",
+            },
+          ],
+        },
+        {
+          label: "Black Lantern Docs",
           items: [
             // Each item here is one entry in the navigation menu.
             {
@@ -29,11 +39,11 @@ export default defineConfig({
               label: "SRS 003",
               slug: "software_specifications/srs_003",
             },
+            {
+              label: "SRS 004",
+              slug: "software_specifications/srs_004",
+            },
           ],
-        },
-        {
-          label: "Reference",
-          autogenerate: { directory: "reference" },
         },
       ],
     }),
