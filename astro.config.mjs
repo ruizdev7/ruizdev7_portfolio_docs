@@ -5,6 +5,7 @@ import starlightBlog from "starlight-blog";
 
 // https://astro.build/config
 export default defineConfig({
+  base: "/", // Ajuste para manejar rutas correctamente
   integrations: [
     starlight({
       plugins: [starlightBlog()],
