@@ -1,5 +1,19 @@
 # build output
-#dist/
+dist/
+out/
+build/
+public/
+# static files
+public/assets/
+
+# cache
+.cache/
+# local env files
+# https://nextjs.org/docs/advanced-features/environment-variables#local-development-environment-variables
+# https://nuxtjs.org/docs/2.x/directory-structure/nuxt-config/#env
+# https://astro.build/en/core-concepts/environment-variables/
+
+
 # generated types
 .astro/
 
