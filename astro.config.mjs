@@ -15,15 +15,6 @@ export default defineConfig({
       },
       sidebar: [
         {
-          label: "ruizdev7 Docs",
-          items: [
-            {
-              label: "Template",
-              slug: "software_specifications/ruizdev7/template",
-            },
-          ],
-        },
-        {
           label: "Black Lantern Docs",
           items: [
             {
