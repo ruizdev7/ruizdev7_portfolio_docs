@@ -10,9 +10,13 @@ export default defineConfig({
     starlight({
       plugins: [starlightBlog()],
       title: "ruizdev7 Docs",
-      social: {
-        github: "https://github.com/ruizdev7",
-      },
+      social: [
+        {
+          icon: "github",
+          label: "GitHub",
+          href: "https://github.com/ruizdev7",
+        },
+      ],
       sidebar: [
         {
           label: "Black Lantern Docs",

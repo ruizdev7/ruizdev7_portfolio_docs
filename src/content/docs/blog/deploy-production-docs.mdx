@@ -1,0 +1,105 @@
+---
+title: "Creando el protocolo para el deploy de un Portfolio web"
+date: 2025-04-24
+authors:
+  name: Jose G Ruiz
+  title: Software Engineer | DevOps Engineer
+  picture: https://avatars.githubusercontent.com/u/62305538?v=4&size=64
+  url: https://www.linkedin.com/in/Ruizdev7
+excerpt: ""
+draft: true
+tags:
+  - DevOps and Automation
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import { FileTree } from '@astrojs/starlight/components';
+
+# Creando el protocolo para el deploy de un Portfolio web
+## Introducción
+En este artículo, se presenta un protocolo para el despliegue de un portafolio web
+que incluye tanto el backend como el frontend. El objetivo es proporcionar una guía 
+clara y concisa para llevar a cabo el despliegue de manera eficiente y efectiva.
+
+
+
+<Aside>
+El portafolio está diseñado para ser desplegado en un entorno de producción 
+utilizando Docker y Docker Compose. Se ha utilizado Flask como framework 
+para el backend y Vite como herramienta de construcción para el frontend.
+El portafolio está dividido en dos partes: el backend y el frontend. 
+El backend se encarga de manejar la lógica del servidor, 
+mientras que el frontend se encarga de la interfaz de usuario. 
+Ambos componentes se comunican entre sí a través de una API RESTful.
+</Aside>
+
+<FileTree>
+- ruizdev7-portfolio/
+  - backend/
+    - .venv
+	- Dockerfile
+	- app.py
+	- config/
+	- config.py
+	- migrations/
+	- portfolio_app/
+	- requirements.txt
+  - frontend/
+	- Dockerfile
+	- README.md
+	- dist/
+	- index.html
+	- node_modules/
+	- package-lock.json
+	- package.json
+	- package.config.js
+	- public/
+	- src/
+	- tailwind.config.js
+	- vite.config.js
+ - docker-compose.yml
+</FileTree>
+
+
+### Comprendiendo el codigo
+
+Para el backend, se ustiliza flask como framework, de igual forma se aprovechan
+las extensiones de flask para la base de datos, migraciones, cors y marshmallow.
+
+```python
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+from flask_cors import CORS
+from flask_marshmallow import Marshmallow
+```
+
+
+{/* ```dockerfile
+# Utiliza una imagen base de Python
+FROM python:3.9-slim
+
+# Establece el directorio de trabajo en /app
+WORKDIR /app
+
+# Copia el archivo requirements.txt e instala las dependencias
+COPY requirements.txt requirements.txt
+RUN pip install -r requirements.txt
+
+RUN apt-get update && \
+    apt-get install -y vim && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copia todo el contenido de la aplicación al contenedor
+COPY . .
+
+
+# Establece una variable de entorno para el modo desarrollo
+ENV FLASK_ENV=development
+
+# Expone el puerto en el que se ejecutará la aplicación
+EXPOSE 5000
+
+# Comando para ejecutar la aplicación en modo desarrollo
+CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]
+``` */}
