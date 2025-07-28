@@ -1,38 +1,48 @@
 ---
-title: "30 docker commands to manage containers"
+title: "30 Docker Commands to Manage Containers"
 date: 2025-02-01
 authors:
   name: Jose G Ruiz
   title: Software Engineer | DevOps Engineer
   picture: https://avatars.githubusercontent.com/u/62305538?v=4&size=64
-  url: https://www.linkedin.com/in/Ruizdev7
+  url: https://ruizdev7.com
 excerpt: Software Engineer with experience in DevOps, specializing in creating and maintaining scalable infrastructures using Kubernetes and Docker. Proficient in Python (Flask, FastAPI) and well-versed in CI/CD and process automation. Passionate about improving developer experience and optimizing workflows. Knowledgeable in AWS, Power BI, and Agile methodologies (Scrum)…
 draft: false
 tags:
   - Tools and Technologies
 ---
 
-Docker is a powerful tool for containerization, and knowing the basic commands is essential for managing Docker containers effectively. Here are 30 basic Docker commands, categorized by their usage.
+import { Aside } from '@astrojs/starlight/components';
+import { LinkCard } from '@astrojs/starlight/components';
+
+It's been five years since I started using Docker in production. Over time, I've become familiar with its API for packaging and distributing my applications. Daily use—whether writing a Dockerfile, running containers, or debugging issues—makes you internalize its API, which is actually quite intuitive.
+
+I'll group the commands according to their use:
 
 ## Docker Installation and Setup
 
+<Aside>There are several ways to install Docker on your operating system. For absolute clarity, don't hesitate to check the [Docker Docs - Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/ "title").</Aside>
+
 1. **docker --version**
+
    ```sh
    docker --version
    ```
-   Check the installed Docker version.
+   Shows the installed version of Docker on your system.
 
 2. **docker info**
+
    ```sh
    docker info
    ```
-   Display system-wide information about Docker.
+   Provides detailed information about your Docker installation, including containers, images, and system configuration.
 
 3. **docker login**
+
    ```sh
    docker login
    ```
-   Log in to the Docker Hub.
+   Allows you to authenticate with a Docker registry (such as Docker Hub) so you can push or pull private images.
 
 ## Docker Images
 
@@ -40,25 +50,37 @@ Docker is a powerful tool for containerization, and knowing the basic commands i
    ```sh
    docker pull <image_name>
    ```
-   Pull an image from a Docker registry.
+   Downloads an image from a Docker registry to your local machine.
 
 5. **docker images**
    ```sh
    docker images
+
+   *************************************************************************************
+   REPOSITORY                    TAG               IMAGE ID       CREATED        SIZE
+   ruizdev7/portfolio-frontend   1.0.0             bc5e7370f8a7   11 days ago    54.2MB
+   ruizdev7/portfolio-backend    1.0.0             777aed368f07   11 days ago    246MB
+   moby/buildkit                 buildx-stable-1   72a94020693f   2 months ago   216MB
+   mysql                         8.0               c6f7ec307380   3 months ago   772MB
+   excalidraw/excalidraw         latest            4c54ecfa158f   3 months ago   92.9MB
+   fireflyiii/core               latest            f5e8a551d54b   4 months ago   733MB
+   jc21/nginx-proxy-manager      latest            9f5e0949eb63   4 months ago   1.09GB
+   alpine                        latest            aded1e1a5b37   5 months ago   7.83MB
+   nginx                         latest            53a18edff809   5 months ago   192MB
    ```
-   List all Docker images on the local system.
+   Lists all Docker images stored locally.
 
 6. **docker rmi**
    ```sh
    docker rmi <image_id>
    ```
-   Remove a Docker image.
+   Removes a Docker image from your local machine.
 
 7. **docker build**
    ```sh
    docker build -t <image_name> .
    ```
-   Build a Docker image from a Dockerfile.
+   Builds a Docker image from a Dockerfile.
 
 ## Docker Containers
 
@@ -66,49 +88,57 @@ Docker is a powerful tool for containerization, and knowing the basic commands i
    ```sh
    docker run -d --name <container_name> <image_name>
    ```
-   Run a container from an image.
+   Creates and runs a new container from an image. Useful flags include:
+    * `-d --detach`: runs the container in the background and prints the container ID
+    * `--name <container_name> <image_name>`: creates a container from the selected image and assigns it a name.
 
 9. **docker ps**
    ```sh
    docker ps
+
+   CONTAINER ID   IMAGE                             COMMAND                  CREATED      STATUS                PORTS                                            NAMES
+   a0b311e915b8   jc21/nginx-proxy-manager:latest   "/init"                  5 days ago   Up 4 days             0.0.0.0:80-81->80-81/tcp, 0.0.0.0:443->443/tcp   proxy-manager
+   bc6eaa1e2d87   excalidraw/excalidraw:latest      "/docker-entrypoint.…"   5 days ago   Up 4 days (healthy)   0.0.0.0:5001->80/tcp                             excalidraw
+   668a3af577fa   ruizdev7-portfolio-backend        "flask run --host=0.…"   5 days ago   Up 4 days             0.0.0.0:8000->6000/tcp                           backend
+   e789e5c966f3   ruizdev7-portfolio-frontend       "docker-entrypoint.s…"   5 days ago   Up 4 days             0.0.0.0:5173->3000/tcp                           frontend
    ```
-   List all running containers.
+   Shows the containers currently running.
 
 10. **docker ps -a**
     ```sh
     docker ps -a
     ```
-    List all containers, including stopped ones.
+    Lists all containers, including those that are stopped.
 
 11. **docker stop**
     ```sh
     docker stop <container_id>
     ```
-    Stop a running container.
+    Stops a running container.
 
 12. **docker start**
     ```sh
     docker start <container_id>
     ```
-    Start a stopped container.
+    Starts a stopped container.
 
 13. **docker restart**
     ```sh
     docker restart <container_id>
     ```
-    Restart a container.
+    Restarts a container (stops and starts it again).
 
 14. **docker rm**
     ```sh
     docker rm <container_id>
     ```
-    Remove a container.
+    Removes a container (it must be stopped first).
 
 15. **docker exec**
     ```sh
     docker exec -it <container_id> /bin/bash
     ```
-    Execute a command inside a running container.
+    Runs a command inside a running container (for example, opens a bash terminal).
 
 ## Docker Volumes
 
@@ -116,25 +146,25 @@ Docker is a powerful tool for containerization, and knowing the basic commands i
     ```sh
     docker volume create <volume_name>
     ```
-    Create a new volume.
+    Creates a new Docker volume for persistent data storage.
 
 17. **docker volume ls**
     ```sh
     docker volume ls
     ```
-    List all volumes.
+    Lists all existing volumes.
 
 18. **docker volume inspect**
     ```sh
     docker volume inspect <volume_name>
     ```
-    Display detailed information about a volume.
+    Shows detailed information about a specific volume.
 
 19. **docker volume rm**
     ```sh
     docker volume rm <volume_name>
     ```
-    Remove a volume.
+    Removes a volume.
 
 ## Docker Networks
 
@@ -142,31 +172,31 @@ Docker is a powerful tool for containerization, and knowing the basic commands i
     ```sh
     docker network create <network_name>
     ```
-    Create a new network.
+    Creates a new Docker network.
 
 21. **docker network ls**
     ```sh
     docker network ls
     ```
-    List all networks.
+    Lists all Docker networks.
 
 22. **docker network inspect**
     ```sh
     docker network inspect <network_name>
     ```
-    Display detailed information about a network.
+    Shows detailed information about a specific network.
 
 23. **docker network connect**
     ```sh
     docker network connect <network_name> <container_name>
     ```
-    Connect a container to a network.
+    Connects a container to an existing network.
 
 24. **docker network disconnect**
     ```sh
     docker network disconnect <network_name> <container_name>
     ```
-    Disconnect a container from a network.
+    Disconnects a container from a network.
 
 ## Docker Compose
 
@@ -174,36 +204,36 @@ Docker is a powerful tool for containerization, and knowing the basic commands i
     ```sh
     docker-compose up
     ```
-    Build, create, start, and attach to containers for a service defined in a `docker-compose.yml` file.
+    Builds, creates, starts, and attaches the services defined in a `docker-compose.yml` file.
 
 26. **docker-compose down**
     ```sh
     docker-compose down
     ```
-    Stop and remove containers, networks, images, and volumes defined in a `docker-compose.yml` file.
+    Stops and removes the containers, networks, images, and volumes defined by `docker-compose.yml`.
 
 27. **docker-compose ps**
     ```sh
     docker-compose ps
     ```
-    List containers for a service defined in a `docker-compose.yml` file.
+    Lists the containers managed by Docker Compose.
 
 28. **docker-compose build**
     ```sh
     docker-compose build
     ```
-    Build or rebuild services defined in a `docker-compose.yml` file.
+    Builds or rebuilds the services defined in `docker-compose.yml`.
 
 29. **docker-compose logs**
     ```sh
     docker-compose logs
     ```
-    View output from containers defined in a `docker-compose.yml` file.
+    Shows the logs of the containers managed by Docker Compose.
 
 30. **docker-compose exec**
     ```sh
     docker-compose exec <service_name> <command>
     ```
-    Execute a command in a running container defined in a `docker-compose.yml` file.
+    Runs a command in a container managed by Docker Compose.
 
 These commands cover the basics of Docker and should help you get started with managing Docker containers, images, volumes, networks, and using Docker Compose for multi-container applications.

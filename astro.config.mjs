@@ -5,10 +5,18 @@ import starlightBlog from "starlight-blog";
 
 // https://astro.build/config
 export default defineConfig({
+  site: "https://www.ruizdev7.com",
   base: "/", // Ajuste para manejar rutas correctamente
   integrations: [
     starlight({
-      plugins: [starlightBlog()],
+      plugins: [
+        starlightBlog({
+          metrics: {
+            readingTime: true,
+            words: "total",
+          },
+        }),
+      ],
       title: "ruizdev7 Docs",
       social: [
         {
