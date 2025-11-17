@@ -1,0 +1,339 @@
+---
+title: Software Requirement Specification (SRS) - Authentication & Authorization System
+description: This document defines requirements for implementing a comprehensive authentication and authorization system with JWT tokens, role-based access control (RBAC), and granular permission management.
+---
+
+import {Tabs, TabItem} from '@astrojs/starlight/components';
+
+## General Information
+
+| Field              | Detail                          |
+|--------------------|--------------------------------|
+| **Company Name**   | ruizdev7                       |
+| **Document Title** | Authentication & Authorization System - SRS |
+| **Document Number**| SRS-001                       |
+| **Version**        | 1.0                            |
+| **Specification Date** | 17-November-24                   |
+| **Status**         | Implemented                        |
+
+## Document Approval
+
+| Role               | Name            | Date       |
+|--------------------|-----------------|------------|
+| **Project Manager** | Joseph Ruiz   | 17-November-24   |
+| **Tech Lead**  | Joseph Ruiz     | 17-November-24   |
+
+## Revision History
+
+| Version | Date       | Changes Made                     | Author        |
+|---------|------------|----------------------------------|---------------|
+| 1.0     | 17-November-24   | Initial SRS Documentation               | Joseph Ruiz   |
+
+## 1. Introduction
+
+### 1.1 Purpose
+This document specifies the requirements for the implementation of a comprehensive Authentication and Authorization System in the ruizdev7 Portfolio application.  
+The objective is to provide a secure, scalable, and maintainable access control mechanism that supports JWT-based authentication, role-based access control (RBAC), and granular permission management for all application resources.
+
+### 1.2 Scope  
+The Authentication & Authorization System includes the following components:  
+
+- **JWT Authentication**: Secure token-based authentication with access and refresh tokens.  
+- **Role-Based Access Control (RBAC)**: Hierarchical role system with predefined roles (admin, moderator, user, guest).  
+- **Permission Management**: Granular permissions for resources (posts, users, pumps, categories, comments, roles).  
+- **Authorization Decorators**: Reusable decorators for endpoint protection.  
+- **Token Management**: Token refresh, revocation, and blocklist functionality.  
+
+The implementation ensures compliance with security best practices, including:  
+- OWASP Top 10 security standards  
+- Secure password hashing (bcrypt)  
+- Protection against common attacks (XSS, CSRF, SQL Injection)  
+
+### 1.3 Definitions  
+- **JWT (JSON Web Token)**: A compact, URL-safe token format for transmitting claims between parties.  
+- **RBAC (Role-Based Access Control)**: An access control model where permissions are assigned to roles, and roles are assigned to users.  
+- **Access Token**: Short-lived token used for authenticating API requests.  
+- **Refresh Token**: Long-lived token used for obtaining new access tokens.  
+- **Permission**: Granular authorization unit defined as `{resource}_{action}` (e.g., posts_create, users_read).  
+- **Decorator**: Python function wrapper used to enforce authorization requirements on endpoints.  
+
+## 2. Functional Requirements
+
+<Tabs>
+	{/* --- UC-001: User Login with JWT --- */}
+	<TabItem label="UC-008">
+	<div className="use-case-content">
+
+	**Priority**: Critical  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | User Login with JWT Authentication                           |
+	| **Subject Area**              | Authentication & Security       |
+	| **Business Event**            | This use case applies when a user attempts to log into the system.                  |
+	| **Actors**                    | General user, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers the login process, token generation, and user session initialization. |
+	| **Preconditions**             | User must have a registered account with valid credentials. |
+	| **Termination Outcome**       | User receives access token, refresh token, and associated roles/permissions. |
+	| **Condition Affecting Outcome** | Invalid credentials, account locked, or system downtime. |
+	| **Use Case Description**      | The system validates credentials, generates JWT tokens, retrieves user roles and permissions, and returns them in the response. |
+	| **Use Case Associations**     | UC-009: Token Refresh, UC-010: User Logout. |
+	| **Traceability To**           | SRS-001, OWASP Top 10. |
+	| **Input Summary**             | Email and password. |
+	| **Output Summary**            | Access token, refresh token, user info, roles, and permissions. |
+	| **Usability Index**           | Critical, as this is the entry point to the system. |
+	| **Use Case Notes**            | Passwords are hashed using bcrypt. Failed login attempts should be logged. |
+
+	</div>
+	</TabItem>
+
+{/* --- UC-002: Token Refresh --- */}
+<TabItem label="UC-009">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Token Refresh                           |
+	| **Subject Area**              | Authentication & Security       |
+	| **Business Event**            | This use case applies when an access token expires and needs renewal.                  |
+	| **Actors**                    | Authenticated user, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers the process of obtaining a new access token using a valid refresh token. |
+	| **Preconditions**             | User must have a valid refresh token. |
+	| **Termination Outcome**       | New access token is generated and returned. |
+	| **Condition Affecting Outcome** | Invalid or expired refresh token, or token in blocklist. |
+	| **Use Case Description**      | The system validates the refresh token and generates a new access token. |
+	| **Use Case Associations**     | UC-008: User Login, UC-010: User Logout. |
+	| **Traceability To**           | SRS-001. |
+	| **Input Summary**             | Valid refresh token. |
+	| **Output Summary**            | New access token. |
+	| **Usability Index**           | High, essential for maintaining user sessions. |
+	| **Use Case Notes**            | Refresh tokens should be rotated periodically for security. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-003: User Logout --- */}
+<TabItem label="UC-010">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | User Logout                           |
+	| **Subject Area**              | Authentication & Security       |
+	| **Business Event**            | This use case applies when a user wants to log out of the system.                  |
+	| **Actors**                    | Authenticated user, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers the logout process and token revocation. |
+	| **Preconditions**             | User must be authenticated with a valid access token. |
+	| **Termination Outcome**       | Access token is added to blocklist, preventing further use. |
+	| **Condition Affecting Outcome** | Invalid token or system downtime. |
+	| **Use Case Description**      | The system adds the current access token to a blocklist table, effectively revoking it. |
+	| **Use Case Associations**     | UC-008: User Login, UC-009: Token Refresh. |
+	| **Traceability To**           | SRS-001. |
+	| **Input Summary**             | Valid access token. |
+	| **Output Summary**            | Confirmation of successful logout. |
+	| **Usability Index**           | High, important for security. |
+	| **Use Case Notes**            | Blocklist should be periodically cleaned to remove expired tokens. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-004: Role-Based Access Control --- */}
+<TabItem label="UC-011">
+	<div className="use-case-content">
+
+	**Priority**: Critical  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Role-Based Access Control (RBAC)                           |
+	| **Subject Area**              | Authorization & Access Control       |
+	| **Business Event**            | This use case applies when the system needs to verify user permissions for accessing resources.                  |
+	| **Actors**                    | Authenticated user, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers permission verification based on user roles. |
+	| **Preconditions**             | User must be authenticated and have assigned roles. |
+	| **Termination Outcome**       | Access granted or denied based on permissions. |
+	| **Condition Affecting Outcome** | Missing roles, insufficient permissions, or system errors. |
+	| **Use Case Description**      | The system checks if the user has the required permission for the requested action by evaluating their assigned roles and associated permissions. |
+	| **Use Case Associations**     | UC-008: User Login, UC-012: Permission Management. |
+	| **Traceability To**           | SRS-001. |
+	| **Input Summary**             | User identity, required permission (resource + action). |
+	| **Output Summary**            | Access granted (200/201) or denied (403). |
+	| **Usability Index**           | Critical, core security mechanism. |
+	| **Use Case Notes**            | Permissions follow the format `{resource}_{action}` (e.g., posts_create, users_delete). |
+
+	</div>
+</TabItem>
+
+{/* --- UC-005: Permission Management --- */}
+<TabItem label="UC-012">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Permission Management                           |
+	| **Subject Area**              | Authorization Administration       |
+	| **Business Event**            | This use case applies when administrators need to manage roles and permissions.                  |
+	| **Actors**                    | System Administrator, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers CRUD operations for roles and permission assignments. |
+	| **Preconditions**             | User must have `roles.create`, `roles.update`, or `roles.delete` permissions. |
+	| **Termination Outcome**       | Roles and permissions are created, updated, or deleted successfully. |
+	| **Condition Affecting Outcome** | Insufficient permissions, validation errors, or database constraints. |
+	| **Use Case Description**      | The system provides API endpoints for managing roles, assigning permissions to roles, and assigning roles to users. |
+	| **Use Case Associations**     | UC-011: RBAC, UC-013: Initialize Default Roles. |
+	| **Traceability To**           | SRS-001. |
+	| **Input Summary**             | Role name, description, permission assignments. |
+	| **Output Summary**            | Confirmation of role/permission changes. |
+	| **Usability Index**           | High, essential for system administration. |
+	| **Use Case Notes**            | Default roles (admin, moderator, user, guest) are predefined with specific permission sets. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-006: Initialize Default Roles --- */}
+<TabItem label="UC-013">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Initialize Default Roles and Permissions                           |
+	| **Subject Area**              | System Configuration       |
+	| **Business Event**            | This use case applies during initial system setup or database reset.                  |
+	| **Actors**                    | System Administrator, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers the initialization of predefined roles and permissions. |
+	| **Preconditions**             | Database must be accessible and migrations must be complete. |
+	| **Termination Outcome**       | Default roles (admin, moderator, user, guest) and 24 permissions are created. |
+	| **Condition Affecting Outcome** | Database errors or existing data conflicts. |
+	| **Use Case Description**      | The system creates 4 default roles with appropriate permission assignments for 6 resources (posts, users, pumps, categories, comments, roles) and 4 actions (create, read, update, delete). |
+	| **Use Case Associations**     | UC-012: Permission Management. |
+	| **Traceability To**           | SRS-001. |
+	| **Input Summary**             | Flask command: `flask init-roles`. |
+	| **Output Summary**            | Confirmation of roles and permissions creation. |
+	| **Usability Index**           | Critical for initial setup. |
+	| **Use Case Notes**            | Admin role has all 24 permissions, while guest has only read permissions. |
+
+	</div>
+</TabItem>
+</Tabs>
+
+## 3. Acceptance Criteria
+
+| Criterion           | Description / Acceptance Condition |
+|---------------------|----------------------------------|
+| **JWT Token Generation** | Access and refresh tokens are generated upon successful login. |
+| **Token Validation** | System validates tokens on each protected endpoint request. |
+| **Token Refresh** | Users can obtain new access tokens using valid refresh tokens. |
+| **Token Revocation** | Logout adds tokens to blocklist, preventing further use. |
+| **Role Assignment** | Users can be assigned multiple roles. |
+| **Permission Verification** | System correctly enforces permission requirements on endpoints. |
+| **Default Roles** | Four predefined roles (admin, moderator, user, guest) exist with appropriate permissions. |
+| **Decorator Protection** | Protected endpoints return 403 for unauthorized users. |
+| **Security** | Passwords are hashed using bcrypt. Tokens use secure secret keys. |
+
+## 4. Non-Functional Requirements
+
+| Category     | Requirement |
+|-------------|-------------|
+| **Performance** | Token validation completed in under 50ms per request. |
+| **Security**    | OWASP Top 10 compliance; bcrypt password hashing; JWT secret key rotation. |
+| **Availability** | 99.95% uptime for authentication services. |
+| **Scalability**   | Support for 10,000+ concurrent authenticated users. |
+| **Maintainability** | Modular decorator-based authorization for easy extension. |
+| **Auditability** | All authentication events (login, logout, failed attempts) are logged. |
+
+## 5. Technical Specifications
+
+### 5.1 Database Schema
+
+**Tables:**
+- `tbl_users`: User accounts with hashed passwords
+- `tbl_roles`: Role definitions (admin, moderator, user, guest)
+- `tbl_permissions`: Permission definitions (24 total)
+- `tbl_role_permissions`: Many-to-many relationship between roles and permissions
+- `tbl_user_roles`: Many-to-many relationship between users and roles
+- `tbl_token_block_list`: Revoked tokens
+
+### 5.2 Permission Structure
+
+**Resources:**
+- posts
+- users
+- pumps
+- categories
+- comments
+- roles
+
+**Actions:**
+- create
+- read
+- update
+- delete
+
+**Format:** `{resource}_{action}` (e.g., `posts_create`, `users_delete`)
+
+### 5.3 Default Role Permissions
+
+| Role | Permissions Count | Description |
+|------|-------------------|-------------|
+| **admin** | 24 | Full access to all resources |
+| **moderator** | 11 | Create/read/update access to most resources |
+| **user** | 7 | Basic CRUD on owned resources |
+| **guest** | 3 | Read-only access |
+
+### 5.4 Authorization Decorators
+
+1. **@require_permission(resource, action)**: Requires specific permission
+2. **@require_role(role_name)**: Requires specific role
+3. **@require_ownership_or_permission(resource, action)**: Allows resource owner or users with permission
+4. **@require_any_permission(permissions)**: Requires at least one of the listed permissions
+5. **@require_all_permissions(permissions)**: Requires all listed permissions
+
+### 5.5 API Endpoints
+
+**Authentication:**
+- `POST /api/v1/token` - Login
+- `GET /api/v1/refresh-token` - Refresh access token
+- `DELETE /api/v1/logout` - Logout
+- `GET /api/v1/whoami` - Get current user info
+- `GET /api/v1/my-permissions` - Get user permissions
+
+**Role Management:**
+- `GET /api/v1/roles` - List roles
+- `POST /api/v1/roles` - Create role
+- `PUT /api/v1/roles/{id}` - Update role
+- `DELETE /api/v1/roles/{id}` - Delete role
+- `GET /api/v1/permissions` - List permissions
+- `POST /api/v1/initialize-roles` - Initialize default roles
+
+**User Role Assignment:**
+- `POST /api/v1/users/{id}/roles` - Assign role to user
+- `DELETE /api/v1/users/{id}/roles/{role_name}` - Remove role from user
+
+## Additional Information
+
+| Field        | Detail |
+|-------------|--------|
+| **Stakeholders** | ruizdev7 Team, Security Auditors |
+| **Attachments** | [ROLES_AND_PERMISSIONS.md], [API_DOCUMENTATION.md] |
+| **Tech Stack** | Flask, Flask-JWT-Extended, SQLAlchemy, bcrypt |
+
+## Final Approval
+
+| Name/Title            | Signature     | Date       |
+|----------------------|--------------|-----------|
+| **Client Representative** | ruizdev7  | 17-November-24 |
+| **Company Representative** | ruizdev7  | 17-November-24 |
+

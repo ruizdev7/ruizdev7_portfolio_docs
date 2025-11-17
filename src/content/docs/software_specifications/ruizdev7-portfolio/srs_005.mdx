@@ -1,0 +1,479 @@
+---
+title: Software Requirement Specification (SRS) - AI-Powered Financial Calculator
+description: This document defines requirements for implementing a comprehensive financial calculator with AI assistance, supporting multiple calculation types including present value, future value, annuities, compound interest, and loan amortization.
+---
+
+import {Tabs, TabItem} from '@astrojs/starlight/components';
+
+## General Information
+
+| Field              | Detail                          |
+|--------------------|--------------------------------|
+| **Company Name**   | ruizdev7                       |
+| **Document Title** | AI-Powered Financial Calculator - SRS |
+| **Document Number**| SRS-005                       |
+| **Version**        | 1.0                            |
+| **Specification Date** | 17-November-24                   |
+| **Status**         | Implemented                        |
+
+## Document Approval
+
+| Role               | Name            | Date       |
+|--------------------|-----------------|------------|
+| **Project Manager** | Joseph Ruiz   | 17-November-24   |
+| **Tech Lead**  | Joseph Ruiz     | 17-November-24   |
+
+## Revision History
+
+| Version | Date       | Changes Made                     | Author        |
+|---------|------------|----------------------------------|---------------|
+| 1.0     | 17-November-24   | Initial SRS Documentation               | Joseph Ruiz   |
+
+## 1. Introduction
+
+### 1.1 Purpose
+This document specifies the requirements for the implementation of an AI-Powered Financial Calculator in the ruizdev7 Portfolio application.  
+The objective is to provide users with sophisticated financial calculation tools that support investment planning, loan analysis, retirement planning, and financial decision-making with optional AI-powered explanations and insights.
+
+### 1.2 Scope  
+The AI-Powered Financial Calculator includes the following components:  
+
+- **Present Value (PV) Calculations**: Determine the current value of future cash flows.  
+- **Future Value (FV) Calculations**: Project the future value of current investments.  
+- **Annuity Calculations**: Evaluate the present value of regular payment streams.  
+- **Compound Interest**: Calculate investment growth with periodic compounding.  
+- **Loan Amortization**: Generate detailed payment schedules for loans with principal and interest breakdown.  
+- **Calculation History**: Store and retrieve past calculations for reference.  
+- **AI Integration**: (Optional) OpenAI integration for explaining calculations and providing financial insights.  
+- **CRUD Operations**: Create, read, update, and delete saved calculations.  
+- **User-Specific Data**: Each user maintains their own calculation history.  
+
+The implementation ensures:  
+- Mathematical accuracy for all financial formulas  
+- Data privacy for user financial information  
+- Scalable storage for calculation history  
+- Integration with authentication system  
+
+### 1.3 Definitions  
+- **Present Value (PV)**: The current value of a future sum of money, discounted at a specific interest rate.  
+- **Future Value (FV)**: The value of a current investment at a future date based on an assumed growth rate.  
+- **Annuity**: A series of equal payments made at regular intervals.  
+- **Compound Interest**: Interest calculated on the initial principal and accumulated interest from previous periods.  
+- **Amortization**: The process of paying off debt through regular payments over time.  
+- **Time Periods**: The number of compounding periods in a calculation (years, months, quarters).  
+- **Interest Rate**: The percentage rate used for discounting or compounding calculations.  
+
+## 2. Functional Requirements
+
+<Tabs>
+	{/* --- UC-001: Calculate Present Value --- */}
+	<TabItem label="UC-032">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Calculate Present Value                           |
+	| **Subject Area**              | Financial Calculations       |
+	| **Business Event**            | This use case applies when users need to determine the current value of future money.                  |
+	| **Actors**                    | Authenticated user, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers calculating present value using the formula: PV = FV / (1 + r)^n |
+	| **Preconditions**             | User must be authenticated. |
+	| **Termination Outcome**       | Present value is calculated and saved to user's history. |
+	| **Condition Affecting Outcome** | Invalid input values, mathematical errors, or database failures. |
+	| **Use Case Description**      | The system validates inputs (future value, interest rate, time periods), applies the PV formula, stores the calculation with metadata, and returns the result with detailed breakdown. |
+	| **Use Case Associations**     | UC-033: Calculate Future Value, UC-037: View Calculation History. |
+	| **Traceability To**           | SRS-005. |
+	| **Input Summary**             | Title, description (optional), future_value (float), interest_rate (%), time_periods (integer). |
+	| **Output Summary**            | Present value, discount factor, total discount amount, input parameters. |
+	| **Usability Index**           | High, essential for investment evaluation. |
+	| **Use Case Notes**            | Formula: PV = FV / (1 + r)^n. Interest rate converted from percentage to decimal. |
+
+	</div>
+	</TabItem>
+
+{/* --- UC-002: Calculate Future Value --- */}
+<TabItem label="UC-033">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Calculate Future Value                           |
+	| **Subject Area**              | Financial Calculations       |
+	| **Business Event**            | This use case applies when users need to project investment growth.                  |
+	| **Actors**                    | Authenticated user, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers calculating future value using the formula: FV = PV × (1 + r)^n |
+	| **Preconditions**             | User must be authenticated. |
+	| **Termination Outcome**       | Future value is calculated and saved to user's history. |
+	| **Condition Affecting Outcome** | Invalid input values or calculation errors. |
+	| **Use Case Description**      | The system validates inputs (present value, interest rate, time periods), applies the FV formula, stores the calculation, and returns detailed results. |
+	| **Use Case Associations**     | UC-032: Calculate Present Value, UC-034: Calculate Annuity. |
+	| **Traceability To**           | SRS-005. |
+	| **Input Summary**             | Title, description (optional), present_value (float), interest_rate (%), time_periods (integer). |
+	| **Output Summary**            | Future value, growth factor, total interest earned, input parameters. |
+	| **Usability Index**           | High, critical for retirement and investment planning. |
+	| **Use Case Notes**            | Formula: FV = PV × (1 + r)^n. Supports long-term projections (up to 50 years). |
+
+	</div>
+</TabItem>
+
+{/* --- UC-003: Calculate Annuity --- */}
+<TabItem label="UC-034">
+	<div className="use-case-content">
+
+	**Priority**: Medium  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Calculate Annuity Present Value                           |
+	| **Subject Area**              | Financial Calculations       |
+	| **Business Event**            | This use case applies when users need to evaluate periodic payment streams.                  |
+	| **Actors**                    | Authenticated user, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers calculating the present value of an annuity: PV = P × [(1 - (1 + r)^-n) / r] |
+	| **Preconditions**             | User must be authenticated. |
+	| **Termination Outcome**       | Annuity present value is calculated and saved. |
+	| **Condition Affecting Outcome** | Invalid payment amount, interest rate, or periods. |
+	| **Use Case Description**      | The system validates inputs (annuity payment, interest rate, periods), applies the annuity formula, and returns the present value of the payment stream. |
+	| **Use Case Associations**     | UC-032: Calculate Present Value, UC-035: Calculate Compound Interest. |
+	| **Traceability To**           | SRS-005. |
+	| **Input Summary**             | Title, description (optional), annuity_payment (float), interest_rate (%), annuity_periods (integer). |
+	| **Output Summary**            | Present value of annuity, total payments, total value. |
+	| **Usability Index**           | Medium, useful for pension and rental income evaluation. |
+	| **Use Case Notes**            | Formula: PV = P × [(1 - (1 + r)^-n) / r]. Handles regular payment frequencies. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-004: Calculate Compound Interest --- */}
+<TabItem label="UC-035">
+	<div className="use-case-content">
+
+	**Priority**: Medium  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Calculate Compound Interest                           |
+	| **Subject Area**              | Financial Calculations       |
+	| **Business Event**            | This use case applies when users need to calculate investment growth with periodic compounding.                  |
+	| **Actors**                    | Authenticated user, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers compound interest calculation: A = P × (1 + r/n)^(n×t) |
+	| **Preconditions**             | User must be authenticated. |
+	| **Termination Outcome**       | Final amount with compound interest is calculated and saved. |
+	| **Condition Affecting Outcome** | Invalid compounding frequency or calculation parameters. |
+	| **Use Case Description**      | The system validates inputs (initial investment, interest rate, time periods, compounding frequency), applies the compound interest formula, and returns detailed breakdown. |
+	| **Use Case Associations**     | UC-033: Calculate Future Value, UC-036: Calculate Amortization. |
+	| **Traceability To**           | SRS-005. |
+	| **Input Summary**             | Title, description (optional), initial_investment (float), interest_rate (%), time_periods (integer), compounding_frequency (1=annual, 4=quarterly, 12=monthly). |
+	| **Output Summary**            | Final amount, total interest earned, effective annual rate, breakdown by period. |
+	| **Usability Index**           | Medium, important for savings account analysis. |
+	| **Use Case Notes**            | Formula: A = P × (1 + r/n)^(n×t). Supports annual, quarterly, monthly compounding. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-005: Calculate Loan Amortization --- */}
+<TabItem label="UC-036">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Calculate Loan Amortization                           |
+	| **Subject Area**              | Financial Calculations       |
+	| **Business Event**            | This use case applies when users need to analyze loan payment schedules.                  |
+	| **Actors**                    | Authenticated user, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers generating complete loan amortization schedules with payment breakdowns. |
+	| **Preconditions**             | User must be authenticated. |
+	| **Termination Outcome**       | Amortization schedule is generated with monthly payment breakdown (principal, interest, balance). |
+	| **Condition Affecting Outcome** | Invalid loan parameters or term length. |
+	| **Use Case Description**      | The system calculates monthly payment using PMT formula, generates amortization table showing principal and interest for each period, computes total interest paid, and stores the complete schedule. |
+	| **Use Case Associations**     | UC-035: Calculate Compound Interest, UC-037: View Calculation History. |
+	| **Traceability To**           | SRS-005. |
+	| **Input Summary**             | Title, description (optional), loan_amount (float), interest_rate (%), loan_term_years (integer). |
+	| **Output Summary**            | Monthly payment, total interest paid, total amount paid, complete amortization schedule (month-by-month breakdown). |
+	| **Usability Index**           | High, critical for mortgage and auto loan planning. |
+	| **Use Case Notes**            | Generates detailed table with payment #, payment amount, principal, interest, remaining balance for each month. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-006: View Calculation History --- */}
+<TabItem label="UC-037">
+	<div className="use-case-content">
+
+	**Priority**: Medium  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | View Calculation History                           |
+	| **Subject Area**              | Calculation Management       |
+	| **Business Event**            | This use case applies when users need to review past calculations.                  |
+	| **Actors**                    | Authenticated user, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers retrieving and displaying user's calculation history with pagination. |
+	| **Preconditions**             | User must be authenticated. |
+	| **Termination Outcome**       | Paginated list of past calculations is displayed with metadata. |
+	| **Condition Affecting Outcome** | No calculations exist or database errors. |
+	| **Use Case Description**      | The system retrieves all calculations for the authenticated user, orders by creation date (newest first), applies pagination, and returns formatted results with calculation type, title, result value, and timestamp. |
+	| **Use Case Associations**     | UC-032-036: All calculation types, UC-038: Update Calculation, UC-039: Delete Calculation. |
+	| **Traceability To**           | SRS-005. |
+	| **Input Summary**             | Page number (default: 1), per_page (default: 10), type filter (optional). |
+	| **Output Summary**            | Array of calculations with pagination metadata. |
+	| **Usability Index**           | Medium, enhances user experience. |
+	| **Use Case Notes**            | Each user only sees their own calculations. Supports filtering by calculation type. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-007: Update Calculation --- */}
+<TabItem label="UC-038">
+	<div className="use-case-content">
+
+	**Priority**: Low  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Update Saved Calculation                           |
+	| **Subject Area**              | Calculation Management       |
+	| **Business Event**            | This use case applies when users need to modify parameters of a saved calculation.                  |
+	| **Actors**                    | Authenticated user (calculation owner), **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers updating existing calculations with new parameters and re-computing results. |
+	| **Preconditions**             | Calculation must exist and belong to the user. |
+	| **Termination Outcome**       | Calculation is updated with new parameters and results. |
+	| **Condition Affecting Outcome** | Calculation not found, ownership verification failure, or validation errors. |
+	| **Use Case Description**      | The system verifies ownership, validates new parameters, recalculates the result, updates the database record, and returns updated data. |
+	| **Use Case Associations**     | UC-037: View Calculation History, UC-039: Delete Calculation. |
+	| **Traceability To**           | SRS-005. |
+	| **Input Summary**             | Calculation ID, updated parameters (type-specific). |
+	| **Output Summary**            | Updated calculation with new results. |
+	| **Usability Index**           | Low, convenience feature. |
+	| **Use Case Notes**            | Maintains calculation history by updating existing record rather than creating new one. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-008: Delete Calculation --- */}
+<TabItem label="UC-039">
+	<div className="use-case-content">
+
+	**Priority**: Low  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Delete Saved Calculation                           |
+	| **Subject Area**              | Calculation Management       |
+	| **Business Event**            | This use case applies when users want to remove calculations from history.                  |
+	| **Actors**                    | Authenticated user (calculation owner), **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers permanent deletion of saved calculations. |
+	| **Preconditions**             | Calculation must exist and belong to the user. |
+	| **Termination Outcome**       | Calculation is permanently removed from database. |
+	| **Condition Affecting Outcome** | Calculation not found or ownership verification failure. |
+	| **Use Case Description**      | The system verifies ownership, deletes the calculation record, and returns confirmation. |
+	| **Use Case Associations**     | UC-037: View Calculation History, UC-038: Update Calculation. |
+	| **Traceability To**           | SRS-005. |
+	| **Input Summary**             | Calculation ID. |
+	| **Output Summary**            | Confirmation message. |
+	| **Usability Index**           | Low, data cleanup feature. |
+	| **Use Case Notes**            | Permanent deletion. Consider implementing archive feature instead. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-009: AI-Powered Calculation Explanation --- */}
+<TabItem label="UC-040">
+	<div className="use-case-content">
+
+	**Priority**: Low  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | AI-Powered Financial Explanation                           |
+	| **Subject Area**              | AI Integration       |
+	| **Business Event**            | This use case applies when users need help understanding financial calculations.                  |
+	| **Actors**                    | Authenticated user, **OpenAI Service**, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers using AI to explain financial calculations and provide insights. |
+	| **Preconditions**             | OpenAI API key configured, user authenticated. |
+	| **Termination Outcome**       | AI-generated explanation of the calculation and financial advice. |
+	| **Condition Affecting Outcome** | OpenAI API unavailable, rate limits exceeded, or invalid request. |
+	| **Use Case Description**      | The system sends calculation parameters and results to OpenAI API, requests explanation, receives and formats AI response, and displays to user. |
+	| **Use Case Associations**     | UC-032-036: All calculation types. |
+	| **Traceability To**           | SRS-005. |
+	| **Input Summary**             | Calculation type, parameters, and results. |
+	| **Output Summary**            | Plain-language explanation, financial insights, recommendations. |
+	| **Usability Index**           | Low, optional enhancement feature. |
+	| **Use Case Notes**            | Future enhancement. Requires OpenAI API integration via portfolio_app.services.openai_service. |
+
+	</div>
+</TabItem>
+</Tabs>
+
+## 3. Acceptance Criteria
+
+| Criterion           | Description / Acceptance Condition |
+|---------------------|----------------------------------|
+| **Calculation Accuracy** | All financial formulas produce mathematically correct results. |
+| **Calculation Types** | System supports PV, FV, Annuity, Compound Interest, and Amortization. |
+| **Data Persistence** | All calculations are saved to user's history. |
+| **User Isolation** | Users can only access their own calculations. |
+| **Input Validation** | System validates all numeric inputs and returns clear error messages. |
+| **Amortization Table** | Loan amortization generates complete monthly breakdown. |
+| **Performance** | Calculations complete in &lt;200ms. |
+| **History Management** | Users can view, update, and delete saved calculations. |
+| **Pagination** | History supports pagination for large datasets. |
+| **Error Handling** | Graceful handling of edge cases (division by zero, negative values). |
+
+## 4. Non-Functional Requirements
+
+| Category     | Requirement |
+|-------------|-------------|
+| **Performance** | Calculations &lt;200ms, history retrieval &lt;300ms. |
+| **Accuracy**    | Floating-point precision to 2 decimal places for monetary values. |
+| **Security** | User data isolation, JWT authentication, input validation. |
+| **Availability** | 99.9% uptime for calculator endpoints. |
+| **Scalability**   | Support for 100,000+ calculations per user without performance degradation. |
+| **Usability** | Intuitive interface with examples and tooltips. |
+| **Data Integrity** | Foreign key constraints, NOT NULL validations. |
+
+## 5. Technical Specifications
+
+### 5.1 Database Schema
+
+**Table: tbl_financial_calculations**
+- `id` (Primary Key, Auto-increment)
+- `user_id` (Foreign Key -> tbl_users, Required)
+- `calculation_type` (Enum: present_value, future_value, annuity, compound_interest, amortization, Required)
+- `title` (String, Max 200 chars, Required)
+- `description` (Text, Optional)
+- `input_parameters` (JSON, All input values)
+- `result_value` (Decimal(15,2), Main result)
+- `result_details` (JSON, Detailed breakdown)
+- `created_at` (Timestamp, Auto-generated)
+- `updated_at` (Timestamp, Auto-updated)
+
+### 5.2 Financial Formulas
+
+**Present Value:**
+```
+PV = FV / (1 + r)^n
+Where: FV = Future Value, r = Interest Rate, n = Time Periods
+```
+
+**Future Value:**
+```
+FV = PV × (1 + r)^n
+Where: PV = Present Value, r = Interest Rate, n = Time Periods
+```
+
+**Annuity:**
+```
+PV = P × [(1 - (1 + r)^-n) / r]
+Where: P = Payment, r = Interest Rate, n = Number of Periods
+```
+
+**Compound Interest:**
+```
+A = P × (1 + r/n)^(n×t)
+Where: P = Principal, r = Annual Rate, n = Compounding Frequency, t = Time
+```
+
+**Loan Payment (PMT):**
+```
+PMT = P × [r(1 + r)^n] / [(1 + r)^n - 1]
+Where: P = Loan Amount, r = Monthly Rate, n = Total Payments
+```
+
+### 5.3 API Endpoints
+
+| Method | Endpoint | Description | Auth | Permission |
+|--------|----------|-------------|------|------------|
+| POST | `/api/financial-calculator` | Create calculation | Yes | JWT |
+| GET | `/api/financial-calculator` | Get calculations (paginated) | Yes | JWT |
+| GET | `/api/financial-calculator/{id}` | Get specific calculation | Yes | JWT |
+| PUT | `/api/financial-calculator/{id}` | Update calculation | Yes | JWT |
+| DELETE | `/api/financial-calculator/{id}` | Delete calculation | Yes | JWT |
+| GET | `/api/financial-calculator/types` | Get available calculation types | No | None |
+
+### 5.4 Validation Schema
+
+**FinancialCalculationInputSchema (Marshmallow):**
+- `calculation_type`: Required, One of [present_value, future_value, annuity, compound_interest, amortization]
+- `title`: Required, String, 1-200 characters
+- `description`: Optional, String, max 1000 characters
+- Type-specific fields validated based on calculation_type
+
+### 5.5 Service Layer
+
+**FinancialCalculatorService:**
+- `perform_calculation(calc_type, data)`: Main calculation dispatcher
+- `calculate_present_value(fv, rate, periods)`: PV calculation
+- `calculate_future_value(pv, rate, periods)`: FV calculation
+- `calculate_annuity(payment, rate, periods)`: Annuity calculation
+- `calculate_compound_interest(principal, rate, periods, frequency)`: Compound interest
+- `calculate_amortization(loan_amount, rate, term_years)`: Amortization schedule
+
+### 5.6 Frontend Components
+
+**AIFinantialCalculator.jsx:**
+- Type selection cards with examples
+- Dynamic form based on selected type
+- Result display with detailed breakdown
+- Calculation history table
+- Export functionality
+
+**Calculation Type Cards:**
+1. Present Value (Target icon)
+2. Future Value (TrendingUp icon)
+3. Annuity (Repeat icon)
+4. Compound Interest (LineChart icon)
+5. Amortization (FileText icon)
+
+### 5.7 Response Format Examples
+
+**Amortization Response:**
+```json
+{
+  "monthly_payment": 1266.71,
+  "total_interest": 103610.40,
+  "total_amount": 303610.40,
+  "amortization_schedule": [
+    {
+      "month": 1,
+      "payment": 1266.71,
+      "principal": 516.71,
+      "interest": 750.00,
+      "remaining_balance": 199483.29
+    },
+    // ... more months
+  ]
+}
+```
+
+## Additional Information
+
+| Field        | Detail |
+|-------------|--------|
+| **Stakeholders** | ruizdev7 Team, Financial Planning Users |
+| **Attachments** | [CALCULADORA_FINANCIERA_EJEMPLOS.md] |
+| **Tech Stack** | Flask, SQLAlchemy, Marshmallow, React |
+| **Frontend Components** | AIFinantialCalculator.jsx |
+| **Future Enhancements** | OpenAI integration for explanations, chart visualizations, comparison tools |
+
+## Final Approval
+
+| Name/Title            | Signature     | Date       |
+|----------------------|--------------|-----------|
+| **Client Representative** | ruizdev7  | 17-November-24 |
+| **Company Representative** | ruizdev7  | 17-November-24 |
+

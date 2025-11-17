@@ -1,0 +1,991 @@
+---
+title: "Building a Full-Stack Blog System with Flask, React, and SEO-Friendly URLs"
+date: 2024-05-15
+authors:
+  name: Jose G Ruiz
+  title: Software Engineer | DevOps Engineer
+  picture: https://avatars.githubusercontent.com/u/62305538?v=4&size=64
+  url: https://www.linkedin.com/in/Ruizdev7
+excerpt: "Learn to build a complete blog/CMS system with Flask and React. This guide covers automatic slug generation for SEO-friendly URLs, category management, featured posts, random content discovery, rich text editing, author attribution, and admin interfaces. Includes SQLAlchemy models, Marshmallow schemas, React components with react-hook-form, and permission-based content management. Perfect for portfolios, marketing sites, or any content-driven application."
+draft: false
+tags:
+  - Backend Development
+  - Frontend Development
+  - SEO
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight/components';
+
+## Introduction
+
+Every developer needs a blog. Whether it's for showcasing projects, sharing knowledge, or building an audience, a well-designed content management system is essential. But why use WordPress or Medium when you can build your own?
+
+In this article, I'll show you how I built a full-stack blog system with automatic slug generation, category management, featured posts, and permission-based access control—all integrated into my portfolio application.
+
+<Aside type="tip">
+**What you'll learn:**
+- Design a flexible blog database schema
+- Implement automatic SEO-friendly slug generation
+- Create category-based content organization
+- Build featured post functionality
+- Implement random content discovery
+- Create admin interface for content management
+- Handle author attribution
+- Integrate with RBAC for content permissions
+</Aside>
+
+## Database Schema: Posts and Categories
+
+Let's design a schema that supports rich content management:
+
+```python
+# backend/portfolio_app/models/tbl_posts.py
+from datetime import datetime
+from portfolio_app import db
+from slugify import slugify
+
+class Post(db.Model):
+    __tablename__ = "tbl_posts"
+    
+    ccn_post = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    slug = db.Column(db.String(250), unique=True, nullable=False, index=True)
+    content = db.Column(db.Text, nullable=False)
+    excerpt = db.Column(db.String(500))
+    
+    # Author and category
+    ccn_author = db.Column(db.Integer, db.ForeignKey("tbl_users.ccn_user"), nullable=False)
+    ccn_category = db.Column(db.Integer, db.ForeignKey("tbl_categories.ccn_category"), nullable=False)
+    
+    # Status and visibility
+    is_published = db.Column(db.Boolean, default=True)
+    is_featured = db.Column(db.Boolean, default=False)
+    
+    # Timestamps
+    published_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    # Relationships
+    author = db.relationship("User", back_populates="posts")
+    category = db.relationship("Category", back_populates="posts")
+    comments = db.relationship("Comment", backref="post", lazy=True, cascade="all, delete-orphan")
+    
+    def __init__(self, title, content, ccn_author, ccn_category, excerpt=None):
+        self.title = title
+        self.content = content
+        self.ccn_author = ccn_author
+        self.ccn_category = ccn_category
+        self.excerpt = excerpt or content[:200]  # Auto-generate excerpt
+        self.slug = self._generate_unique_slug(title)
+    
+    def _generate_unique_slug(self, title):
+        """Generate unique SEO-friendly slug"""
+        base_slug = slugify(title, max_length=200)
+        slug = base_slug
+        counter = 1
+        
+        # Ensure uniqueness
+        while Post.query.filter_by(slug=slug).first():
+            slug = f"{base_slug}-{counter}"
+            counter += 1
+        
+        return slug
+    
+    def update_slug(self):
+        """Update slug if title changed"""
+        new_slug = slugify(self.title, max_length=200)
+        if new_slug != self.slug:
+            self.slug = self._generate_unique_slug(self.title)
+    
+    def to_dict(self, include_author=True, include_category=True):
+        data = {
+            "ccn_post": self.ccn_post,
+            "title": self.title,
+            "slug": self.slug,
+            "content": self.content,
+            "excerpt": self.excerpt,
+            "is_published": self.is_published,
+            "is_featured": self.is_featured,
+            "published_at": self.published_at.isoformat(),
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+        
+        if include_author and self.author:
+            data["author"] = {
+                "name": f"{self.author.first_name} {self.author.last_name}",
+                "email": self.author.email
+            }
+        
+        if include_category and self.category:
+            data["category"] = {
+                "name": self.category.category,
+                "slug": self.category.slug
+            }
+        
+        return data
+    
+    def __repr__(self):
+        return f"Post('{self.title}', Slug: '{self.slug}')"
+
+class Category(db.Model):
+    __tablename__ = "tbl_categories"
+    
+    ccn_category = db.Column(db.Integer, primary_key=True)
+    category = db.Column(db.String(50), unique=True, nullable=False)
+    slug = db.Column(db.String(60), unique=True, nullable=False)
+    description = db.Column(db.String(200))
+    
+    # Relationships
+    posts = db.relationship("Post", back_populates="category")
+    
+    def __init__(self, category, description=None):
+        self.category = category
+        self.slug = slugify(category)
+        self.description = description
+    
+    def __repr__(self):
+        return f"Category('{self.category}')"
+```
+
+<Aside type="note">
+**Slug Generation**: We use the `python-slugify` library to create URL-safe slugs. The `_generate_unique_slug()` method handles duplicates by appending numbers (e.g., "my-post", "my-post-1", "my-post-2").
+</Aside>
+
+## API Endpoints for Content Management
+
+Let's create comprehensive CRUD endpoints:
+
+```python
+# backend/portfolio_app/resources/resource_posts.py
+from flask import Blueprint, jsonify, request, make_response
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from portfolio_app import db
+from portfolio_app.models.tbl_posts import Post
+from portfolio_app.models.tbl_users import User
+from portfolio_app.models.tbl_categories import Category
+from portfolio_app.schemas.schema_posts import SchemaPost
+from portfolio_app.decorators.auth_decorators import (
+    require_permission,
+    require_ownership_or_permission
+)
+
+blueprint_api_post = Blueprint("api_post", __name__)
+
+@blueprint_api_post.route("/api/v1/posts", methods=["POST"])
+@jwt_required()
+@require_permission("posts", "create")
+def create_post():
+    """Create a new blog post"""
+    request_data = request.get_json()
+    
+    # Validate required fields
+    if not all(k in request_data for k in ["title", "content", "ccn_category"]):
+        return {"error": "Missing required fields"}, 400
+    
+    # Get current user as author
+    current_user_email = get_jwt_identity()
+    user = User.query.filter_by(email=current_user_email).first()
+    
+    # Create post (slug generated automatically)
+    new_post = Post(
+        title=request_data["title"],
+        content=request_data["content"],
+        ccn_author=user.ccn_user,
+        ccn_category=request_data["ccn_category"],
+        excerpt=request_data.get("excerpt")
+    )
+    
+    db.session.add(new_post)
+    db.session.commit()
+    
+    return {
+        "post": new_post.to_dict(),
+        "message": "Post created successfully"
+    }, 201
+
+@blueprint_api_post.route("/api/v1/posts", methods=["GET"])
+def get_random_posts():
+    """Get 3 random posts for content discovery"""
+    posts = Post.query.filter_by(is_published=True)\
+                     .order_by(db.func.random())\
+                     .limit(3)\
+                     .all()
+    
+    return {
+        "posts": [post.to_dict() for post in posts]
+    }, 200
+
+@blueprint_api_post.route("/api/v1/posts/featured", methods=["GET"])
+def get_featured_post():
+    """Get the featured post (most recent or manually featured)"""
+    # Try to get manually featured post first
+    post = Post.query.filter_by(is_published=True, is_featured=True)\
+                    .order_by(Post.published_at.desc())\
+                    .first()
+    
+    # Fallback to most recent post
+    if not post:
+        post = Post.query.filter_by(is_published=True)\
+                        .order_by(Post.published_at.desc())\
+                        .first()
+    
+    if not post:
+        return {"message": "No posts available"}, 404
+    
+    return {"featured_post": post.to_dict()}, 200
+
+@blueprint_api_post.route("/api/v1/posts/slug/<slug>", methods=["GET"])
+def get_post_by_slug(slug):
+    """Get post by SEO-friendly slug"""
+    post = Post.query.filter_by(slug=slug, is_published=True).first()
+    
+    if not post:
+        return {"error": "Post not found"}, 404
+    
+    return {"post": post.to_dict()}, 200
+
+@blueprint_api_post.route("/api/v1/posts/<int:post_id>", methods=["GET"])
+def get_post(post_id):
+    """Get post by ID"""
+    post = Post.query.filter_by(ccn_post=post_id).first()
+    
+    if not post:
+        return {"error": "Post not found"}, 404
+    
+    return {"post": post.to_dict()}, 200
+
+@blueprint_api_post.route("/api/v1/posts-table", methods=["GET"])
+@jwt_required()
+@require_permission("posts", "read")
+def get_posts_table():
+    """Get all posts for admin table view"""
+    posts = Post.query.order_by(Post.ccn_post.desc()).all()
+    
+    return {
+        "posts": [post.to_dict() for post in posts],
+        "total": len(posts)
+    }, 200
+
+@blueprint_api_post.route("/api/v1/posts/<int:post_id>", methods=["PUT"])
+@jwt_required()
+@require_ownership_or_permission("posts", "update")
+def update_post(post_id):
+    """Update existing post"""
+    post = Post.query.get_or_404(post_id)
+    request_data = request.get_json()
+    
+    # Update fields
+    if "title" in request_data:
+        post.title = request_data["title"]
+        post.update_slug()  # Regenerate slug if title changed
+    
+    if "content" in request_data:
+        post.content = request_data["content"]
+    
+    if "excerpt" in request_data:
+        post.excerpt = request_data["excerpt"]
+    
+    if "ccn_category" in request_data:
+        post.ccn_category = request_data["ccn_category"]
+    
+    if "is_published" in request_data:
+        post.is_published = request_data["is_published"]
+    
+    if "is_featured" in request_data:
+        post.is_featured = request_data["is_featured"]
+    
+    db.session.commit()
+    
+    return {
+        "post": post.to_dict(),
+        "message": "Post updated successfully"
+    }, 200
+
+@blueprint_api_post.route("/api/v1/posts/<int:post_id>", methods=["DELETE"])
+@jwt_required()
+@require_permission("posts", "delete")
+def delete_post(post_id):
+    """Delete post"""
+    post = Post.query.get_or_404(post_id)
+    
+    db.session.delete(post)
+    db.session.commit()
+    
+    return {"message": "Post deleted successfully"}, 200
+
+@blueprint_api_post.route("/api/v1/categories", methods=["GET"])
+def get_categories():
+    """Get all categories"""
+    categories = Category.query.all()
+    return {
+        "categories": [
+            {
+                "ccn_category": c.ccn_category,
+                "category": c.category,
+                "slug": c.slug,
+                "description": c.description,
+                "post_count": len(c.posts)
+            }
+            for c in categories
+        ]
+    }, 200
+
+@blueprint_api_post.route("/api/v1/categories/<slug>/posts", methods=["GET"])
+def get_posts_by_category(slug):
+    """Get all posts in a category"""
+    category = Category.query.filter_by(slug=slug).first_or_404()
+    posts = Post.query.filter_by(ccn_category=category.ccn_category, is_published=True)\
+                     .order_by(Post.published_at.desc())\
+                     .all()
+    
+    return {
+        "category": category.category,
+        "posts": [post.to_dict() for post in posts],
+        "count": len(posts)
+    }, 200
+```
+
+## Frontend: Featured Post Component
+
+Create an attractive featured post display:
+
+```jsx
+// frontend/src/components/home_blog/FeaturedPost.jsx
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+
+function FeaturedPost() {
+  const [featuredPost, setFeaturedPost] = useState(null);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    fetchFeaturedPost();
+  }, []);
+  
+  const fetchFeaturedPost = async () => {
+    try {
+      const response = await fetch('/api/v1/posts/featured');
+      const data = await response.json();
+      setFeaturedPost(data.featured_post);
+    } catch (error) {
+      console.error('Error fetching featured post:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  if (loading) {
+    return (
+      <div className="animate-pulse bg-gray-200 h-96 rounded-lg"></div>
+    );
+  }
+  
+  if (!featuredPost) return null;
+  
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="relative overflow-hidden rounded-2xl shadow-2xl bg-gradient-to-br from-blue-500 to-purple-600"
+    >
+      <div className="absolute inset-0 bg-black opacity-40"></div>
+      
+      <div className="relative p-8 md:p-12 text-white">
+        {/* Category Badge */}
+        <div className="mb-4">
+          <span className="inline-block bg-white bg-opacity-20 backdrop-blur-sm 
+                         px-4 py-1 rounded-full text-sm font-medium">
+            {featuredPost.category.name}
+          </span>
+        </div>
+        
+        {/* Title */}
+        <h2 className="text-3xl md:text-5xl font-bold mb-4 leading-tight">
+          {featuredPost.title}
+        </h2>
+        
+        {/* Excerpt */}
+        <p className="text-lg md:text-xl text-gray-100 mb-6 line-clamp-3">
+          {featuredPost.excerpt}
+        </p>
+        
+        {/* Meta Information */}
+        <div className="flex items-center space-x-4 mb-6">
+          <div className="flex items-center">
+            <div className="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center mr-2">
+              👤
+            </div>
+            <span>{featuredPost.author.name}</span>
+          </div>
+          <span>•</span>
+          <span>{new Date(featuredPost.published_at).toLocaleDateString()}</span>
+        </div>
+        
+        {/* Read More Button */}
+        <Link
+          to={`/blog/${featuredPost.slug}`}
+          className="inline-block bg-white text-blue-600 px-8 py-3 rounded-lg 
+                   font-semibold hover:bg-opacity-90 transition-all transform hover:scale-105"
+        >
+          Read Article →
+        </Link>
+      </div>
+    </motion.article>
+  );
+}
+
+export default FeaturedPost;
+```
+
+## Post List Component
+
+Display a grid of blog posts:
+
+```jsx
+// frontend/src/components/home_blog/PostList.jsx
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+
+function PostList() {
+  const [posts, setPosts] = useState([]);
+  
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+  
+  const fetchPosts = async () => {
+    try {
+      const response = await fetch('/api/v1/posts');
+      const data = await response.json();
+      setPosts(data.posts);
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+    }
+  };
+  
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {posts.map(post => (
+        <PostCard key={post.ccn_post} post={post} />
+      ))}
+    </div>
+  );
+}
+
+function PostCard({ post }) {
+  return (
+    <Link to={`/blog/${post.slug}`} className="block group">
+      <article className="bg-white rounded-lg shadow-md overflow-hidden 
+                        transform transition-all duration-300 hover:-translate-y-2 hover:shadow-xl">
+        {/* Category Badge */}
+        <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-4 py-2">
+          <span className="text-white text-sm font-medium">
+            {post.category.name}
+          </span>
+        </div>
+        
+        <div className="p-6">
+          {/* Title */}
+          <h3 className="text-xl font-bold mb-3 group-hover:text-blue-600 transition-colors">
+            {post.title}
+          </h3>
+          
+          {/* Excerpt */}
+          <p className="text-gray-600 mb-4 line-clamp-3">
+            {post.excerpt}
+          </p>
+          
+          {/* Footer */}
+          <div className="flex items-center justify-between text-sm text-gray-500">
+            <div className="flex items-center">
+              <span className="mr-2">✍️</span>
+              <span>{post.author.name}</span>
+            </div>
+            <time dateTime={post.published_at}>
+              {new Date(post.published_at).toLocaleDateString()}
+            </time>
+          </div>
+        </div>
+      </article>
+    </Link>
+  );
+}
+
+export default PostList;
+```
+
+## Admin Interface: Post Management Table
+
+Build a powerful admin interface for managing posts:
+
+```jsx
+// frontend/src/components/home_blog/PostTable.jsx
+import { useState, useEffect } from 'react';
+import { usePermissions } from '../../hooks/usePermissions';
+
+function PostTable() {
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { hasPermission } = usePermissions();
+  
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+  
+  const fetchPosts = async () => {
+    try {
+      const response = await fetch('/api/v1/posts-table', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      });
+      const data = await response.json();
+      setPosts(data.posts);
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleDelete = async (postId) => {
+    if (!confirm('Are you sure you want to delete this post?')) return;
+    
+    try {
+      const response = await fetch(`/api/v1/posts/${postId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      });
+      
+      if (response.ok) {
+        toast.success('Post deleted successfully');
+        fetchPosts();
+      }
+    } catch (error) {
+      toast.error('Error deleting post');
+    }
+  };
+  
+  const toggleFeatured = async (post) => {
+    try {
+      const response = await fetch(`/api/v1/posts/${post.ccn_post}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        },
+        body: JSON.stringify({ is_featured: !post.is_featured })
+      });
+      
+      if (response.ok) {
+        toast.success('Post updated');
+        fetchPosts();
+      }
+    } catch (error) {
+      toast.error('Error updating post');
+    }
+  };
+  
+  if (loading) {
+    return <div className="text-center py-8">Loading posts...</div>;
+  }
+  
+  return (
+    <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="p-6 border-b">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold">Manage Posts</h2>
+          {hasPermission('posts', 'create') && (
+            <Link
+              to="/admin/posts/new"
+              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+            >
+              ➕ New Post
+            </Link>
+          )}
+        </div>
+      </div>
+      
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Title
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Author
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Category
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Status
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Published
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {posts.map(post => (
+              <tr key={post.ccn_post} className="hover:bg-gray-50">
+                <td className="px-6 py-4">
+                  <div className="flex items-center">
+                    {post.is_featured && (
+                      <span className="mr-2 text-yellow-500" title="Featured">⭐</span>
+                    )}
+                    <div>
+                      <div className="font-medium text-gray-900">{post.title}</div>
+                      <div className="text-sm text-gray-500">/{post.slug}</div>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-6 py-4 text-sm text-gray-600">
+                  {post.author.name}
+                </td>
+                <td className="px-6 py-4">
+                  <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                    {post.category.name}
+                  </span>
+                </td>
+                <td className="px-6 py-4">
+                  <span className={`px-2 py-1 text-xs rounded-full ${
+                    post.is_published 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {post.is_published ? 'Published' : 'Draft'}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-sm text-gray-600">
+                  {new Date(post.published_at).toLocaleDateString()}
+                </td>
+                <td className="px-6 py-4">
+                  <div className="flex space-x-2">
+                    <Link
+                      to={`/blog/${post.slug}`}
+                      className="text-blue-600 hover:text-blue-800"
+                      title="View"
+                    >
+                      👁️
+                    </Link>
+                    {hasPermission('posts', 'update') && (
+                      <>
+                        <Link
+                          to={`/admin/posts/edit/${post.ccn_post}`}
+                          className="text-green-600 hover:text-green-800"
+                          title="Edit"
+                        >
+                          ✏️
+                        </Link>
+                        <button
+                          onClick={() => toggleFeatured(post)}
+                          className="text-yellow-600 hover:text-yellow-800"
+                          title="Toggle Featured"
+                        >
+                          ⭐
+                        </button>
+                      </>
+                    )}
+                    {hasPermission('posts', 'delete') && (
+                      <button
+                        onClick={() => handleDelete(post.ccn_post)}
+                        className="text-red-600 hover:text-red-800"
+                        title="Delete"
+                      >
+                        🗑️
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+export default PostTable;
+```
+
+## Rich Text Editor Integration
+
+For content creation, integrate a rich text editor:
+
+```jsx
+// Example with react-quill
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
+
+function PostEditor({ initialContent, onChange }) {
+  const modules = {
+    toolbar: [
+      [{ 'header': [1, 2, 3, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      [{ 'color': [] }, { 'background': [] }],
+      ['link', 'image', 'code-block'],
+      ['clean']
+    ]
+  };
+  
+  return (
+    <ReactQuill
+      theme="snow"
+      value={initialContent}
+      onChange={onChange}
+      modules={modules}
+      className="bg-white"
+      placeholder="Write your post content here..."
+    />
+  );
+}
+```
+
+## SEO Optimization
+
+Enhance your blog with SEO best practices:
+
+```jsx
+// frontend/src/pages/BlogPost.jsx
+import { Helmet } from 'react-helmet-async';
+import { useParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+
+function BlogPost() {
+  const { slug } = useParams();
+  const [post, setPost] = useState(null);
+  
+  useEffect(() => {
+    fetchPost();
+  }, [slug]);
+  
+  const fetchPost = async () => {
+    const response = await fetch(`/api/v1/posts/slug/${slug}`);
+    const data = await response.json();
+    setPost(data.post);
+  };
+  
+  if (!post) return <div>Loading...</div>;
+  
+  return (
+    <>
+      <Helmet>
+        <title>{post.title} | ruizdev7 Blog</title>
+        <meta name="description" content={post.excerpt} />
+        <meta property="og:title" content={post.title} />
+        <meta property="og:description" content={post.excerpt} />
+        <meta property="og:type" content="article" />
+        <meta property="og:url" content={`https://ruizdev7.com/blog/${post.slug}`} />
+        <meta property="article:published_time" content={post.published_at} />
+        <meta property="article:author" content={post.author.name} />
+        <meta property="article:section" content={post.category.name} />
+        <link rel="canonical" href={`https://ruizdev7.com/blog/${post.slug}`} />
+      </Helmet>
+      
+      <article className="max-w-4xl mx-auto px-4 py-8">
+        {/* Header */}
+        <header className="mb-8">
+          <div className="text-sm text-blue-600 font-medium mb-2">
+            {post.category.name}
+          </div>
+          <h1 className="text-4xl md:text-5xl font-bold mb-4">{post.title}</h1>
+          
+          <div className="flex items-center text-gray-600 space-x-4">
+            <div className="flex items-center">
+              <span className="mr-2">✍️</span>
+              <span>{post.author.name}</span>
+            </div>
+            <span>•</span>
+            <time dateTime={post.published_at}>
+              {new Date(post.published_at).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })}
+            </time>
+          </div>
+        </header>
+        
+        {/* Content */}
+        <div 
+          className="prose prose-lg max-w-none"
+          dangerouslySetInnerHTML={{ __html: post.content }}
+        />
+        
+        {/* Footer */}
+        <footer className="mt-12 pt-8 border-t">
+          <div className="flex items-center justify-between">
+            <Link
+              to="/blog"
+              className="text-blue-600 hover:text-blue-800"
+            >
+              ← Back to Blog
+            </Link>
+            
+            <div className="flex space-x-4">
+              <button className="text-gray-600 hover:text-blue-600">
+                Share on Twitter
+              </button>
+              <button className="text-gray-600 hover:text-blue-600">
+                Share on LinkedIn
+              </button>
+            </div>
+          </div>
+        </footer>
+      </article>
+    </>
+  );
+}
+
+export default BlogPost;
+```
+
+## Slug Generation Utilities
+
+```python
+# backend/portfolio_app/utils/slug_utils.py
+import re
+from unidecode import unidecode
+
+def generate_slug(text, max_length=200):
+    """
+    Generate SEO-friendly slug from text
+    
+    Examples:
+        "Hello World!" -> "hello-world"
+        "Python & Flask Tutorial" -> "python-flask-tutorial"
+        "10 Tips for Success" -> "10-tips-for-success"
+    """
+    # Convert to ASCII
+    text = unidecode(text)
+    
+    # Convert to lowercase
+    text = text.lower()
+    
+    # Replace non-alphanumeric characters with hyphens
+    text = re.sub(r'[^a-z0-9]+', '-', text)
+    
+    # Remove leading/trailing hyphens
+    text = text.strip('-')
+    
+    # Limit length
+    if len(text) > max_length:
+        text = text[:max_length].rsplit('-', 1)[0]
+    
+    return text
+```
+
+## Content Search and Filtering
+
+Add search functionality:
+
+```python
+@blueprint_api_post.route("/api/v1/posts/search", methods=["GET"])
+def search_posts():
+    """Search posts by title, content, or author"""
+    query = request.args.get('q', '')
+    category = request.args.get('category')
+    
+    # Build search query
+    search = f"%{query}%"
+    posts_query = Post.query.filter(
+        db.or_(
+            Post.title.ilike(search),
+            Post.content.ilike(search)
+        ),
+        Post.is_published == True
+    )
+    
+    # Filter by category if provided
+    if category:
+        posts_query = posts_query.filter_by(ccn_category=category)
+    
+    posts = posts_query.order_by(Post.published_at.desc()).all()
+    
+    return {
+        "posts": [post.to_dict() for post in posts],
+        "count": len(posts),
+        "query": query
+    }, 200
+```
+
+## Analytics and Insights
+
+Track post performance:
+
+```python
+class Post(db.Model):
+    # ... existing fields ...
+    
+    view_count = db.Column(db.Integer, default=0)
+    like_count = db.Column(db.Integer, default=0)
+    
+    def increment_views(self):
+        """Increment view count"""
+        self.view_count += 1
+        db.session.commit()
+
+@blueprint_api_post.route("/api/v1/posts/<int:post_id>/view", methods=["POST"])
+def track_view(post_id):
+    """Track post view"""
+    post = Post.query.get_or_404(post_id)
+    post.increment_views()
+    return {"message": "View tracked"}, 200
+```
+
+<Aside type="tip">
+**SEO Tip**: Use descriptive slugs, proper meta tags, semantic HTML, and sitemap.xml generation for better search engine rankings. The slug should describe the content and include target keywords.
+</Aside>
+
+## Best Practices
+
+1. **Slug Generation**: Always ensure uniqueness and URL safety
+2. **Author Attribution**: Track who created and modified content
+3. **Category Organization**: Use hierarchical categories for large blogs
+4. **Draft vs Published**: Support draft status for content workflow
+5. **Versioning**: Consider implementing post versioning for revision history
+6. **Caching**: Cache frequently accessed posts to reduce database load
+7. **Pagination**: Implement pagination for large post lists
+
+## Conclusion
+
+You now have a complete blog/CMS system with:
+- ✅ Automatic SEO-friendly slug generation
+- ✅ Category-based organization
+- ✅ Featured post highlighting
+- ✅ Random content discovery
+- ✅ Permission-based content management
+- ✅ Admin interface with CRUD operations
+- ✅ Author attribution and tracking
+- ✅ Search and filtering capabilities
+
+This system can be extended with:
+- Rich text editing with markdown
+- Image uploads and galleries
+- Comment system
+- Social media integration
+- RSS feed generation
+- Email newsletter integration
+- Content scheduling
+- Analytics dashboard
+
+The complete implementation is available in my [GitHub repository](https://github.com/ruizdev7/ruizdev7-portfolio).
+
+**Next Steps:** Check out my article on implementing user management with password reset functionality!
+
+---
+
+*Want to discuss content management strategies? Connect on [LinkedIn](https://www.linkedin.com/in/Ruizdev7)!*
+

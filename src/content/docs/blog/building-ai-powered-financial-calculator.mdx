@@ -1,0 +1,997 @@
+---
+title: "Building an AI-Powered Financial Calculator with Python and React"
+date: 2024-07-18
+authors:
+  name: Jose G Ruiz
+  title: Software Engineer | DevOps Engineer
+  picture: https://avatars.githubusercontent.com/u/62305538?v=4&size=64
+  url: https://www.linkedin.com/in/Ruizdev7
+excerpt: "Learn to build a comprehensive financial calculator that handles Present Value, Future Value, Annuities, Compound Interest, and Loan Amortization. This guide covers mathematical formulas, Flask API implementation, user-specific calculation history, React UI with validation, and OpenAI integration for explaining complex financial concepts. Perfect for fintech developers or anyone building financial planning tools with real-world applications."
+draft: false
+tags:
+  - Backend Development
+  - Frontend Development
+  - AI Integration
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight/components';
+
+## Introduction
+
+Financial planning is complex. Whether you're calculating mortgage payments, investment returns, or retirement savings, the math can be overwhelming. What if you could build a tool that not only performs accurate calculations but also explains them in plain language?
+
+In this article, I'll show you how I built a comprehensive financial calculator with five calculation types, persistent user history, and optional AI explanations using OpenAI's API.
+
+<Aside type="tip">
+**What you'll learn:**
+- Implement financial formulas (PV, FV, Annuity, Compound Interest, Amortization)
+- Build a Flask service layer for calculations
+- Store calculation history per user
+- Create an intuitive React interface
+- Integrate OpenAI for financial explanations
+- Handle floating-point precision in financial applications
+</Aside>
+
+## The Five Calculation Types
+
+Let's start by understanding what our calculator does:
+
+### 1. Present Value (PV)
+**What it calculates**: The current value of a future sum of money.
+
+**Formula**: `PV = FV / (1 + r)^n`
+
+**Use Case**: "I need $50,000 in 5 years. How much should I invest today at 8% interest?"
+
+### 2. Future Value (FV)  
+**What it calculates**: The value of an investment at a future date.
+
+**Formula**: `FV = PV × (1 + r)^n`
+
+**Use Case**: "If I invest $10,000 today at 6% for 10 years, how much will I have?"
+
+### 3. Annuity
+**What it calculates**: The present value of a series of regular payments.
+
+**Formula**: `PV = P × [(1 - (1 + r)^-n) / r]`
+
+**Use Case**: "What's the present value of receiving $1,000 monthly for 3 years?"
+
+### 4. Compound Interest
+**What it calculates**: Investment growth with periodic compounding.
+
+**Formula**: `A = P × (1 + r/n)^(n×t)`
+
+**Use Case**: "How much will $5,000 grow with 7% interest compounded quarterly over 4 years?"
+
+### 5. Loan Amortization
+**What it calculates**: Loan payment schedule with principal and interest breakdown.
+
+**Formula**: `PMT = P × [r(1 + r)^n] / [(1 + r)^n - 1]`
+
+**Use Case**: "What are my monthly payments on a $200,000 mortgage at 4.5% for 20 years?"
+
+## Database Schema
+
+First, let's design the database to store calculation history:
+
+```python
+# backend/portfolio_app/models/tbl_financial_calculations.py
+from datetime import datetime
+from portfolio_app import db
+
+class TblFinancialCalculations(db.Model):
+    __tablename__ = "tbl_financial_calculations"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("tbl_users.ccn_user"), nullable=False)
+    calculation_type = db.Column(
+        db.Enum(
+            "present_value",
+            "future_value",
+            "annuity",
+            "compound_interest",
+            "amortization"
+        ),
+        nullable=False
+    )
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    input_parameters = db.Column(db.JSON, nullable=False)
+    result_value = db.Column(db.Numeric(15, 2), nullable=False)
+    result_details = db.Column(db.JSON, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    # Relationship
+    user = db.relationship("User", backref="financial_calculations")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "calculation_type": self.calculation_type,
+            "title": self.title,
+            "description": self.description,
+            "input_parameters": self.input_parameters,
+            "result_value": float(self.result_value),
+            "result_details": self.result_details,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+```
+
+<Aside type="note">
+**Design Decision**: We store both `input_parameters` and `result_details` as JSON to maintain flexibility. Different calculation types have different parameters, and this approach avoids creating multiple tables.
+</Aside>
+
+## The Calculation Service
+
+Now let's implement the financial formulas in a service layer:
+
+```python
+# backend/portfolio_app/services/financial_calculator_service.py
+import math
+from typing import Dict, Any
+
+class FinancialCalculatorService:
+    
+    @staticmethod
+    def perform_calculation(calculation_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Main dispatcher for financial calculations
+        """
+        calculators = {
+            "present_value": FinancialCalculatorService.calculate_present_value,
+            "future_value": FinancialCalculatorService.calculate_future_value,
+            "annuity": FinancialCalculatorService.calculate_annuity,
+            "compound_interest": FinancialCalculatorService.calculate_compound_interest,
+            "amortization": FinancialCalculatorService.calculate_amortization
+        }
+        
+        calculator = calculators.get(calculation_type)
+        if not calculator:
+            raise ValueError(f"Unknown calculation type: {calculation_type}")
+        
+        return calculator(data)
+    
+    @staticmethod
+    def calculate_present_value(data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Calculate Present Value: PV = FV / (1 + r)^n
+        """
+        future_value = float(data["future_value"])
+        interest_rate = float(data["interest_rate"]) / 100  # Convert percentage
+        time_periods = int(data["time_periods"])
+        
+        # Validate inputs
+        if future_value <= 0 or interest_rate < 0 or time_periods <= 0:
+            raise ValueError("Invalid input values")
+        
+        # Calculate present value
+        discount_factor = (1 + interest_rate) ** time_periods
+        present_value = future_value / discount_factor
+        
+        return {
+            "present_value": round(present_value, 2),
+            "future_value": future_value,
+            "interest_rate": data["interest_rate"],
+            "time_periods": time_periods,
+            "discount_factor": round(discount_factor, 4),
+            "total_discount": round(future_value - present_value, 2)
+        }
+    
+    @staticmethod
+    def calculate_future_value(data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Calculate Future Value: FV = PV × (1 + r)^n
+        """
+        present_value = float(data["present_value"])
+        interest_rate = float(data["interest_rate"]) / 100
+        time_periods = int(data["time_periods"])
+        
+        if present_value <= 0 or interest_rate < 0 or time_periods <= 0:
+            raise ValueError("Invalid input values")
+        
+        # Calculate future value
+        growth_factor = (1 + interest_rate) ** time_periods
+        future_value = present_value * growth_factor
+        
+        return {
+            "future_value": round(future_value, 2),
+            "present_value": present_value,
+            "interest_rate": data["interest_rate"],
+            "time_periods": time_periods,
+            "growth_factor": round(growth_factor, 4),
+            "total_interest": round(future_value - present_value, 2)
+        }
+    
+    @staticmethod
+    def calculate_annuity(data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Calculate Annuity Present Value: PV = P × [(1 - (1 + r)^-n) / r]
+        """
+        annuity_payment = float(data["annuity_payment"])
+        interest_rate = float(data["interest_rate"]) / 100
+        annuity_periods = int(data["annuity_periods"])
+        
+        if annuity_payment <= 0 or interest_rate < 0 or annuity_periods <= 0:
+            raise ValueError("Invalid input values")
+        
+        # Special case: if interest rate is 0
+        if interest_rate == 0:
+            present_value = annuity_payment * annuity_periods
+        else:
+            # Calculate present value of annuity
+            discount_factor = (1 - (1 + interest_rate) ** -annuity_periods) / interest_rate
+            present_value = annuity_payment * discount_factor
+        
+        total_payments = annuity_payment * annuity_periods
+        
+        return {
+            "present_value": round(present_value, 2),
+            "annuity_payment": annuity_payment,
+            "interest_rate": data["interest_rate"],
+            "annuity_periods": annuity_periods,
+            "total_payments": round(total_payments, 2),
+            "total_interest_earned": round(total_payments - present_value, 2)
+        }
+    
+    @staticmethod
+    def calculate_compound_interest(data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Calculate Compound Interest: A = P × (1 + r/n)^(n×t)
+        """
+        initial_investment = float(data["initial_investment"])
+        interest_rate = float(data["interest_rate"]) / 100
+        time_periods = int(data["time_periods"])
+        compounding_frequency = int(data.get("compounding_frequency", 1))  # Default annual
+        
+        if initial_investment <= 0 or interest_rate < 0 or time_periods <= 0:
+            raise ValueError("Invalid input values")
+        
+        # Calculate final amount
+        rate_per_period = interest_rate / compounding_frequency
+        total_periods = compounding_frequency * time_periods
+        final_amount = initial_investment * (1 + rate_per_period) ** total_periods
+        
+        # Calculate effective annual rate
+        effective_rate = (1 + rate_per_period) ** compounding_frequency - 1
+        
+        return {
+            "final_amount": round(final_amount, 2),
+            "initial_investment": initial_investment,
+            "interest_rate": data["interest_rate"],
+            "time_periods": time_periods,
+            "compounding_frequency": compounding_frequency,
+            "total_interest": round(final_amount - initial_investment, 2),
+            "effective_annual_rate": round(effective_rate * 100, 2)
+        }
+    
+    @staticmethod
+    def calculate_amortization(data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Calculate Loan Amortization Schedule
+        """
+        loan_amount = float(data["loan_amount"])
+        interest_rate = float(data["interest_rate"]) / 100
+        loan_term_years = int(data["loan_term_years"])
+        
+        if loan_amount <= 0 or interest_rate < 0 or loan_term_years <= 0:
+            raise ValueError("Invalid input values")
+        
+        # Convert to monthly
+        monthly_rate = interest_rate / 12
+        total_payments = loan_term_years * 12
+        
+        # Calculate monthly payment using PMT formula
+        if monthly_rate == 0:
+            monthly_payment = loan_amount / total_payments
+        else:
+            monthly_payment = loan_amount * (
+                monthly_rate * (1 + monthly_rate) ** total_payments
+            ) / ((1 + monthly_rate) ** total_payments - 1)
+        
+        # Generate amortization schedule
+        schedule = []
+        remaining_balance = loan_amount
+        total_interest_paid = 0
+        
+        for month in range(1, total_payments + 1):
+            interest_payment = remaining_balance * monthly_rate
+            principal_payment = monthly_payment - interest_payment
+            remaining_balance -= principal_payment
+            total_interest_paid += interest_payment
+            
+            # Store every month (or every 12th for annual summary)
+            if month % 12 == 0 or month == 1 or month == total_payments:
+                schedule.append({
+                    "month": month,
+                    "payment": round(monthly_payment, 2),
+                    "principal": round(principal_payment, 2),
+                    "interest": round(interest_payment, 2),
+                    "remaining_balance": round(max(0, remaining_balance), 2)
+                })
+        
+        return {
+            "monthly_payment": round(monthly_payment, 2),
+            "loan_amount": loan_amount,
+            "interest_rate": data["interest_rate"],
+            "loan_term_years": loan_term_years,
+            "total_payments": total_payments,
+            "total_interest": round(total_interest_paid, 2),
+            "total_amount": round(loan_amount + total_interest_paid, 2),
+            "amortization_schedule": schedule
+        }
+```
+
+<Aside type="caution">
+**Floating-Point Precision**: Financial calculations require careful handling of floating-point arithmetic. Always round to 2 decimal places for currency and use `Decimal` type for critical financial applications.
+</Aside>
+
+## Validation Schema
+
+Let's add input validation using Marshmallow:
+
+```python
+# backend/portfolio_app/schemas/schema_financial_calculations.py
+from marshmallow import Schema, fields, validates, ValidationError
+
+class FinancialCalculationInputSchema(Schema):
+    calculation_type = fields.Str(
+        required=True,
+        validate=lambda x: x in [
+            "present_value", "future_value", "annuity",
+            "compound_interest", "amortization"
+        ]
+    )
+    title = fields.Str(required=True, validate=lambda x: 1 <= len(x) <= 200)
+    description = fields.Str(allow_none=True)
+    
+    # Present Value fields
+    future_value = fields.Float(allow_none=True)
+    
+    # Future Value fields
+    present_value = fields.Float(allow_none=True)
+    
+    # Common fields
+    interest_rate = fields.Float(allow_none=True)
+    time_periods = fields.Int(allow_none=True)
+    
+    # Annuity fields
+    annuity_payment = fields.Float(allow_none=True)
+    annuity_periods = fields.Int(allow_none=True)
+    
+    # Compound Interest fields
+    initial_investment = fields.Float(allow_none=True)
+    compounding_frequency = fields.Int(allow_none=True)
+    
+    # Amortization fields
+    loan_amount = fields.Float(allow_none=True)
+    loan_term_years = fields.Int(allow_none=True)
+    
+    @validates("interest_rate")
+    def validate_interest_rate(self, value):
+        if value is not None and (value < 0 or value > 100):
+            raise ValidationError("Interest rate must be between 0 and 100")
+    
+    @validates("time_periods")
+    def validate_time_periods(self, value):
+        if value is not None and value <= 0:
+            raise ValidationError("Time periods must be positive")
+
+class FinancialCalculationResponseSchema(Schema):
+    id = fields.Int()
+    user_id = fields.Int()
+    calculation_type = fields.Str()
+    title = fields.Str()
+    description = fields.Str()
+    input_parameters = fields.Dict()
+    result_value = fields.Float()
+    result_details = fields.Dict()
+    created_at = fields.DateTime()
+    updated_at = fields.DateTime()
+
+class FinancialCalculationListSchema(Schema):
+    id = fields.Int()
+    calculation_type = fields.Str()
+    title = fields.Str()
+    result_value = fields.Float()
+    created_at = fields.DateTime()
+```
+
+## API Endpoints
+
+Now let's create the REST API:
+
+```python
+# backend/portfolio_app/resources/resource_financial_calculator.py
+from flask import request, jsonify, Blueprint
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from marshmallow import ValidationError
+import json
+
+from portfolio_app.models.tbl_financial_calculations import TblFinancialCalculations
+from portfolio_app.models.tbl_users import User
+from portfolio_app.schemas.schema_financial_calculations import (
+    FinancialCalculationInputSchema,
+    FinancialCalculationResponseSchema,
+    FinancialCalculationListSchema
+)
+from portfolio_app.services.financial_calculator_service import FinancialCalculatorService
+from portfolio_app.extensions import db
+
+blueprint_api_financial_calculator = Blueprint(
+    "api_financial_calculator", __name__, url_prefix=""
+)
+
+@blueprint_api_financial_calculator.route("/api/financial-calculator", methods=["POST"])
+@jwt_required()
+def create_calculation():
+    """Create a new financial calculation"""
+    try:
+        # Validate input
+        schema = FinancialCalculationInputSchema()
+        data = schema.load(request.json)
+        
+        # Get current user
+        user_email = get_jwt_identity()
+        user = User.query.filter_by(email=user_email).first()
+        if not user:
+            return {"error": "User not found"}, 404
+        
+        # Perform calculation
+        calculation_result = FinancialCalculatorService.perform_calculation(
+            data["calculation_type"], data
+        )
+        
+        # Extract main result value
+        result_value = (
+            calculation_result.get("present_value") or
+            calculation_result.get("future_value") or
+            calculation_result.get("final_amount") or
+            calculation_result.get("monthly_payment") or
+            0
+        )
+        
+        # Save to database
+        financial_calc = TblFinancialCalculations(
+            user_id=user.ccn_user,
+            calculation_type=data["calculation_type"],
+            title=data["title"],
+            description=data.get("description"),
+            input_parameters=json.dumps(data),
+            result_value=result_value,
+            result_details=json.dumps(calculation_result)
+        )
+        
+        db.session.add(financial_calc)
+        db.session.commit()
+        
+        # Return response
+        response_schema = FinancialCalculationResponseSchema()
+        return response_schema.dump(financial_calc), 201
+    
+    except ValidationError as e:
+        return {"error": "Invalid input", "details": e.messages}, 400
+    except ValueError as e:
+        return {"error": "Calculation error", "details": str(e)}, 400
+    except Exception as e:
+        db.session.rollback()
+        return {"error": "Internal server error", "details": str(e)}, 500
+
+@blueprint_api_financial_calculator.route("/api/financial-calculator", methods=["GET"])
+@jwt_required()
+def get_calculations():
+    """Get all calculations for current user"""
+    try:
+        user_email = get_jwt_identity()
+        user = User.query.filter_by(email=user_email).first()
+        if not user:
+            return {"error": "User not found"}, 404
+        
+        # Get query parameters
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 10, type=int)
+        calc_type = request.args.get("type")
+        
+        # Build query
+        query = TblFinancialCalculations.query.filter_by(user_id=user.ccn_user)
+        
+        if calc_type:
+            query = query.filter_by(calculation_type=calc_type)
+        
+        # Paginate
+        pagination = query.order_by(
+            TblFinancialCalculations.created_at.desc()
+        ).paginate(page=page, per_page=per_page, error_out=False)
+        
+        # Serialize
+        schema = FinancialCalculationListSchema(many=True)
+        calculations = schema.dump(pagination.items)
+        
+        return {
+            "calculations": calculations,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total": pagination.total,
+                "pages": pagination.pages,
+                "has_next": pagination.has_next,
+                "has_prev": pagination.has_prev
+            }
+        }, 200
+    
+    except Exception as e:
+        return {"error": "Error fetching calculations", "details": str(e)}, 500
+
+@blueprint_api_financial_calculator.route("/api/financial-calculator/types", methods=["GET"])
+def get_calculation_types():
+    """Get available calculation types with descriptions"""
+    calculation_types = [
+        {
+            "type": "present_value",
+            "name": "Present Value",
+            "description": "Calculate the current value of a future investment",
+            "required_fields": ["future_value", "interest_rate", "time_periods"]
+        },
+        {
+            "type": "future_value",
+            "name": "Future Value",
+            "description": "Calculate the future value of a current investment",
+            "required_fields": ["present_value", "interest_rate", "time_periods"]
+        },
+        {
+            "type": "annuity",
+            "name": "Annuity",
+            "description": "Calculate present value of a series of payments",
+            "required_fields": ["annuity_payment", "interest_rate", "annuity_periods"]
+        },
+        {
+            "type": "compound_interest",
+            "name": "Compound Interest",
+            "description": "Calculate investment growth with compound interest",
+            "required_fields": ["initial_investment", "interest_rate", "time_periods"]
+        },
+        {
+            "type": "amortization",
+            "name": "Loan Amortization",
+            "description": "Calculate loan amortization schedule",
+            "required_fields": ["loan_amount", "interest_rate", "loan_term_years"]
+        }
+    ]
+    
+    return {"calculation_types": calculation_types}, 200
+```
+
+## React Frontend Implementation
+
+Now let's build the user interface:
+
+```jsx
+// frontend/src/pages/AI-financial-calculator/AIFinancialCalculator.jsx
+import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { toast } from 'react-toastify';
+
+const calculationTypes = [
+  {
+    type: 'present_value',
+    name: 'Present Value',
+    icon: '🎯',
+    example: 'How much to invest today for future goal?'
+  },
+  {
+    type: 'future_value',
+    name: 'Future Value',
+    icon: '📈',
+    example: 'How much will my investment grow?'
+  },
+  {
+    type: 'annuity',
+    name: 'Annuity',
+    icon: '🔁',
+    example: 'Value of regular payment stream?'
+  },
+  {
+    type: 'compound_interest',
+    name: 'Compound Interest',
+    icon: '💰',
+    example: 'Growth with periodic compounding?'
+  },
+  {
+    type: 'amortization',
+    name: 'Loan Amortization',
+    icon: '🏠',
+    example: 'Monthly mortgage payment?'
+  }
+];
+
+function AIFinancialCalculator() {
+  const [selectedType, setSelectedType] = useState(null);
+  const [result, setResult] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(false);
+  
+  const { register, handleSubmit, formState: { errors }, reset } = useForm();
+  
+  useEffect(() => {
+    fetchHistory();
+  }, []);
+  
+  const fetchHistory = async () => {
+    try {
+      const response = await fetch('/api/financial-calculator', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      });
+      const data = await response.json();
+      setHistory(data.calculations || []);
+    } catch (error) {
+      console.error('Error fetching history:', error);
+    }
+  };
+  
+  const onSubmit = async (data) => {
+    setLoading(true);
+    try {
+      const payload = {
+        ...data,
+        calculation_type: selectedType,
+        // Convert string inputs to numbers
+        ...Object.keys(data).reduce((acc, key) => {
+          if (['title', 'description', 'calculation_type'].includes(key)) {
+            acc[key] = data[key];
+          } else {
+            acc[key] = parseFloat(data[key]) || parseInt(data[key]);
+          }
+          return acc;
+        }, {})
+      };
+      
+      const response = await fetch('/api/financial-calculator', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      if (response.ok) {
+        const calculationData = await response.json();
+        setResult(JSON.parse(calculationData.result_details));
+        toast.success('Calculation completed successfully!');
+        fetchHistory();
+        reset();
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Calculation failed');
+      }
+    } catch (error) {
+      toast.error('Error performing calculation');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const renderInputFields = () => {
+    const commonFields = (
+      <>
+        <div className="mb-4">
+          <label className="block text-sm font-medium mb-2">Title *</label>
+          <input
+            {...register('title', { required: 'Title is required' })}
+            className="w-full p-2 border rounded"
+            placeholder="e.g., Retirement Planning"
+          />
+          {errors.title && (
+            <span className="text-red-500 text-sm">{errors.title.message}</span>
+          )}
+        </div>
+        
+        <div className="mb-4">
+          <label className="block text-sm font-medium mb-2">Description</label>
+          <textarea
+            {...register('description')}
+            className="w-full p-2 border rounded"
+            rows="2"
+            placeholder="Optional notes about this calculation"
+          />
+        </div>
+      </>
+    );
+    
+    switch (selectedType) {
+      case 'present_value':
+        return (
+          <>
+            {commonFields}
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">Future Value ($) *</label>
+              <input
+                {...register('future_value', { required: true, min: 0 })}
+                type="number"
+                step="0.01"
+                className="w-full p-2 border rounded"
+                placeholder="50000"
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">Interest Rate (%) *</label>
+              <input
+                {...register('interest_rate', { required: true, min: 0, max: 100 })}
+                type="number"
+                step="0.01"
+                className="w-full p-2 border rounded"
+                placeholder="8.0"
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">Time Periods (years) *</label>
+              <input
+                {...register('time_periods', { required: true, min: 1 })}
+                type="number"
+                className="w-full p-2 border rounded"
+                placeholder="5"
+              />
+            </div>
+          </>
+        );
+      
+      case 'amortization':
+        return (
+          <>
+            {commonFields}
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">Loan Amount ($) *</label>
+              <input
+                {...register('loan_amount', { required: true, min: 0 })}
+                type="number"
+                step="0.01"
+                className="w-full p-2 border rounded"
+                placeholder="200000"
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">Interest Rate (%) *</label>
+              <input
+                {...register('interest_rate', { required: true, min: 0, max: 100 })}
+                type="number"
+                step="0.01"
+                className="w-full p-2 border rounded"
+                placeholder="4.5"
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">Loan Term (years) *</label>
+              <input
+                {...register('loan_term_years', { required: true, min: 1 })}
+                type="number"
+                className="w-full p-2 border rounded"
+                placeholder="20"
+              />
+            </div>
+          </>
+        );
+      
+      // Add other calculation types similarly...
+      default:
+        return null;
+    }
+  };
+  
+  const renderResult = () => {
+    if (!result) return null;
+    
+    return (
+      <div className="bg-white p-6 rounded-lg shadow-lg mt-6">
+        <h3 className="text-2xl font-bold mb-4">Calculation Result</h3>
+        
+        <div className="grid grid-cols-2 gap-4">
+          {Object.entries(result).map(([key, value]) => {
+            if (typeof value === 'object') return null; // Skip objects like schedule
+            
+            return (
+              <div key={key} className="border-b pb-2">
+                <div className="text-sm text-gray-600">
+                  {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                </div>
+                <div className="text-lg font-semibold">
+                  {typeof value === 'number' ? `$${value.toLocaleString()}` : value}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        
+        {result.amortization_schedule && (
+          <div className="mt-6">
+            <h4 className="text-xl font-semibold mb-3">Payment Schedule</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="p-2 text-left">Month</th>
+                    <th className="p-2 text-right">Payment</th>
+                    <th className="p-2 text-right">Principal</th>
+                    <th className="p-2 text-right">Interest</th>
+                    <th className="p-2 text-right">Balance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.amortization_schedule.map((row) => (
+                    <tr key={row.month} className="border-b">
+                      <td className="p-2">{row.month}</td>
+                      <td className="p-2 text-right">${row.payment.toLocaleString()}</td>
+                      <td className="p-2 text-right">${row.principal.toLocaleString()}</td>
+                      <td className="p-2 text-right">${row.interest.toLocaleString()}</td>
+                      <td className="p-2 text-right">${row.remaining_balance.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+  
+  return (
+    <div className="max-w-7xl mx-auto p-6">
+      <h1 className="text-4xl font-bold mb-8">Financial Calculator</h1>
+      
+      {/* Calculation Type Selection */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+        {calculationTypes.map((calc) => (
+          <button
+            key={calc.type}
+            onClick={() => setSelectedType(calc.type)}
+            className={`p-6 rounded-lg border-2 transition-all ${
+              selectedType === calc.type
+                ? 'border-blue-500 bg-blue-50'
+                : 'border-gray-200 hover:border-blue-300'
+            }`}
+          >
+            <div className="text-4xl mb-2">{calc.icon}</div>
+            <div className="font-semibold">{calc.name}</div>
+            <div className="text-sm text-gray-600 mt-2">{calc.example}</div>
+          </button>
+        ))}
+      </div>
+      
+      {/* Calculation Form */}
+      {selectedType && (
+        <form onSubmit={handleSubmit(onSubmit)} className="bg-white p-6 rounded-lg shadow">
+          <h2 className="text-2xl font-semibold mb-4">
+            {calculationTypes.find(c => c.type === selectedType)?.name}
+          </h2>
+          
+          {renderInputFields()}
+          
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-500 text-white p-3 rounded hover:bg-blue-600 disabled:opacity-50"
+          >
+            {loading ? 'Calculating...' : 'Calculate'}
+          </button>
+        </form>
+      )}
+      
+      {/* Result Display */}
+      {renderResult()}
+      
+      {/* Calculation History */}
+      {history.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-2xl font-bold mb-4">Calculation History</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {history.map((calc) => (
+              <div key={calc.id} className="bg-white p-4 rounded-lg shadow">
+                <div className="text-sm text-gray-600">{calc.calculation_type}</div>
+                <div className="font-semibold">{calc.title}</div>
+                <div className="text-2xl font-bold text-blue-600">
+                  ${calc.result_value.toLocaleString()}
+                </div>
+                <div className="text-xs text-gray-500 mt-2">
+                  {new Date(calc.created_at).toLocaleDateString()}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default AIFinancialCalculator;
+```
+
+## Optional: OpenAI Integration
+
+Add AI explanations for complex calculations:
+
+```python
+# backend/portfolio_app/services/openai_service.py
+import openai
+import os
+
+class OpenAIService:
+    
+    @staticmethod
+    def explain_calculation(calculation_type: str, input_params: dict, results: dict) -> str:
+        """
+        Use OpenAI to explain a financial calculation in plain language
+        """
+        openai.api_key = os.environ.get('OPENAI_API_KEY')
+        
+        prompt = f"""
+        Explain this {calculation_type} financial calculation in simple terms:
+        
+        Input Parameters:
+        {input_params}
+        
+        Results:
+        {results}
+        
+        Provide:
+        1. What this calculation means
+        2. How it was calculated
+        3. Practical advice based on the results
+        """
+        
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a financial advisor explaining calculations."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=500
+        )
+        
+        return response.choices[0].message.content
+```
+
+## Best Practices
+
+1. **Precision**: Use `Decimal` for critical financial operations
+2. **Validation**: Validate all inputs before calculation
+3. **Rounding**: Always round currency to 2 decimal places
+4. **Error Handling**: Provide clear error messages
+5. **Testing**: Write unit tests for each formula
+6. **Documentation**: Document formulas and assumptions
+
+<Aside type="tip">
+**Testing Tip**: Create test cases with known results to verify your formulas. For example, a $10,000 investment at 5% for 10 years should yield approximately $16,288.95.
+</Aside>
+
+## Conclusion
+
+You now have a complete financial calculator with:
+- ✅ Five calculation types with accurate formulas
+- ✅ Flask backend with validation
+- ✅ User-specific calculation history
+- ✅ React UI with form validation
+- ✅ Amortization schedule generation
+- ✅ Optional AI explanations
+
+This calculator can be extended with:
+- Export to Excel/PDF
+- Visualization charts
+- Comparison tools
+- What-if scenarios
+- Mobile app version
+
+The complete code is available in my [GitHub repository](https://github.com/ruizdev7/ruizdev7-portfolio).
+
+**What's Next?** Check out my article on building a pump management system with real-time analytics!
+
+---
+
+*Have questions? Connect with me on [LinkedIn](https://www.linkedin.com/in/Ruizdev7)!*
+

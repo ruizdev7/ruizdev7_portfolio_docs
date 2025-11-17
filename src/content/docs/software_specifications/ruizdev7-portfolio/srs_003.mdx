@@ -1,0 +1,396 @@
+---
+title: Software Requirement Specification (SRS) - Pump Management & Analytics System
+description: This document defines requirements for implementing an industrial pump management system with CRUD operations, photo management, data analytics, and maintenance tracking.
+---
+
+import {Tabs, TabItem} from '@astrojs/starlight/components';
+
+## General Information
+
+| Field              | Detail                          |
+|--------------------|--------------------------------|
+| **Company Name**   | ruizdev7                       |
+| **Document Title** | Pump Management & Analytics System - SRS |
+| **Document Number**| SRS-003                       |
+| **Version**        | 1.0                            |
+| **Specification Date** | 17-November-24                   |
+| **Status**         | Implemented                        |
+
+## Document Approval
+
+| Role               | Name            | Date       |
+|--------------------|-----------------|------------|
+| **Project Manager** | Joseph Ruiz   | 17-November-24   |
+| **Tech Lead**  | Joseph Ruiz     | 17-November-24   |
+
+## Revision History
+
+| Version | Date       | Changes Made                     | Author        |
+|---------|------------|----------------------------------|---------------|
+| 1.0     | 17-November-24   | Initial SRS Documentation               | Joseph Ruiz   |
+
+## 1. Introduction
+
+### 1.1 Purpose
+This document specifies the requirements for the implementation of a comprehensive Pump Management and Analytics System in the ruizdev7 Portfolio application.  
+The objective is to provide industrial equipment managers with tools to track pump inventory, monitor performance specifications, manage maintenance schedules, upload photos, and analyze operational data through interactive charts and visualizations.
+
+### 1.2 Scope  
+The Pump Management & Analytics System includes the following components:  
+
+- **Pump CRUD Operations**: Complete create, read, update, delete functionality for industrial pumps.  
+- **Photo Management**: Upload, store, and display multiple photos per pump with secure file handling.  
+- **Specifications Tracking**: Monitor technical specifications (flow rate, pressure, power, efficiency, voltage, current, power factor).  
+- **Maintenance Scheduling**: Track last maintenance date and schedule next maintenance.  
+- **Data Analytics**: Interactive charts using ECharts and AG Charts for performance analysis.  
+- **TanStack Table Integration**: Advanced table with sorting, filtering, and pagination.  
+- **Export Capabilities**: Export pump data to Excel format.  
+- **Audit Logging**: Track all pump modifications for compliance.  
+- **Permission-Based Access**: Role-based authorization for pump management.  
+
+The implementation ensures:  
+- Data integrity for industrial equipment records  
+- Secure file upload and storage  
+- Scalable analytics infrastructure  
+- Compliance with audit requirements  
+
+### 1.3 Definitions  
+- **Pump**: Industrial water or fluid pump equipment with technical specifications and maintenance records.  
+- **Specifications**: Technical parameters including flow rate (L/min), pressure (bar), power (kW), efficiency (%), voltage (V), current (A), and power factor.  
+- **Maintenance Window**: Period between last maintenance and next scheduled maintenance.  
+- **Photo Management**: System for uploading, storing, and displaying pump images with UUID-based naming.  
+- **Audit Log**: Immutable record of all pump creation, modification, and deletion events.  
+- **Analytics Dashboard**: Interactive visualizations for pump performance analysis.  
+
+## 2. Functional Requirements
+
+<Tabs>
+	{/* --- UC-001: Create Pump --- */}
+	<TabItem label="UC-020">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Create Pump Record                           |
+	| **Subject Area**              | Equipment Management       |
+	| **Business Event**            | This use case applies when an authorized user wants to register a new pump in the system.                  |
+	| **Actors**                    | User with pumps.create permission, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers creating a new pump record with specifications, photos, and maintenance schedules. |
+	| **Preconditions**             | User must be authenticated and have `pumps.create` permission. |
+	| **Termination Outcome**       | New pump is created with all specifications and photos stored. Audit log entry is created. |
+	| **Condition Affecting Outcome** | Missing required fields, invalid file formats, or database errors. |
+	| **Use Case Description**      | The system validates input data, processes uploaded photos (max 5MB, formats: png/jpg/jpeg/gif/webp), stores them with UUID naming, creates pump record, and logs the action. |
+	| **Use Case Associations**     | UC-021: View Pump Details, UC-022: Update Pump, UC-024: Upload Pump Photos. |
+	| **Traceability To**           | SRS-003. |
+	| **Input Summary**             | Model, serial number, location, purchase date, status, specifications (flow rate, pressure, power, efficiency, voltage, current, power factor), maintenance dates, user ID, optional photos. |
+	| **Output Summary**            | Created pump with unique ID and stored photos. |
+	| **Usability Index**           | High, essential for equipment inventory management. |
+	| **Use Case Notes**            | All technical specifications are required. Photos are optional but recommended for maintenance reference. |
+
+	</div>
+	</TabItem>
+
+{/* --- UC-002: View Pump Details --- */}
+<TabItem label="UC-021">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | View Pump Details                           |
+	| **Subject Area**              | Equipment Information       |
+	| **Business Event**            | This use case applies when users need to view detailed pump information.                  |
+	| **Actors**                    | User with pumps.read permission, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers retrieving and displaying comprehensive pump data including specifications, photos, and maintenance history. |
+	| **Preconditions**             | Pump must exist, user must have `pumps.read` permission. |
+	| **Termination Outcome**       | Complete pump details are displayed with all specifications and photos. |
+	| **Condition Affecting Outcome** | Pump not found, insufficient permissions, or database errors. |
+	| **Use Case Description**      | The system retrieves pump data by ID, loads associated photos, formats specifications, and returns enriched data. |
+	| **Use Case Associations**     | UC-020: Create Pump, UC-023: View Pump Analytics. |
+	| **Traceability To**           | SRS-003. |
+	| **Input Summary**             | Pump ID. |
+	| **Output Summary**            | Pump data with specifications, photo URLs, maintenance schedule. |
+	| **Usability Index**           | Critical, primary information retrieval function. |
+	| **Use Case Notes**            | Supports both single pump view and list view with TanStack Table. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-003: Update Pump --- */}
+<TabItem label="UC-022">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Update Pump Record                           |
+	| **Subject Area**              | Equipment Management       |
+	| **Business Event**            | This use case applies when authorized users need to modify pump information.                  |
+	| **Actors**                    | Pump owner or user with pumps.update permission, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers updating pump specifications, status, maintenance dates, and photos. |
+	| **Preconditions**             | Pump must exist, user must have ownership or `pumps.update` permission. |
+	| **Termination Outcome**       | Pump record is updated with new data. Audit log entry is created documenting changes. |
+	| **Condition Affecting Outcome** | Pump not found, insufficient permissions, validation errors, or database constraints. |
+	| **Use Case Description**      | The system verifies permissions, validates new data, updates the pump record, processes any new photos, and creates an audit log entry with before/after values. |
+	| **Use Case Associations**     | UC-020: Create Pump, UC-025: Delete Pump. |
+	| **Traceability To**           | SRS-003. |
+	| **Input Summary**             | Pump ID, updated fields (specifications, status, maintenance dates, photos). |
+	| **Output Summary**            | Updated pump data with audit log confirmation. |
+	| **Usability Index**           | High, critical for maintaining accurate equipment records. |
+	| **Use Case Notes**            | Uses `@require_ownership_or_permission` decorator. All changes are audited. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-004: View Pump Analytics --- */}
+<TabItem label="UC-023">
+	<div className="use-case-content">
+
+	**Priority**: Medium  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | View Pump Analytics Dashboard                           |
+	| **Subject Area**              | Data Analytics       |
+	| **Business Event**            | This use case applies when users want to analyze pump performance and trends.                  |
+	| **Actors**                    | User with pumps.read permission, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers displaying interactive charts and visualizations of pump data. |
+	| **Preconditions**             | At least one pump must exist with recorded specifications. |
+	| **Termination Outcome**       | Interactive charts display pump specifications, comparisons, and trends. |
+	| **Condition Affecting Outcome** | No pump data available or rendering errors. |
+	| **Use Case Description**      | The system aggregates pump data, calculates statistics, and renders visualizations using ECharts and AG Charts including bar charts, line charts, scatter plots, and distribution analyses. |
+	| **Use Case Associations**     | UC-021: View Pump Details. |
+	| **Traceability To**           | SRS-003. |
+	| **Input Summary**             | Filter parameters (optional: date range, location, status). |
+	| **Output Summary**            | Interactive charts showing: efficiency distribution, flow rate vs pressure, power consumption trends, maintenance schedules. |
+	| **Usability Index**           | Medium, valuable for performance optimization. |
+	| **Use Case Notes**            | Frontend components: DataAnalysisContentECharts, DataAnalysisContent. Supports export to Excel. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-005: Upload Pump Photos --- */}
+<TabItem label="UC-024">
+	<div className="use-case-content">
+
+	**Priority**: Medium  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Upload Pump Photos                           |
+	| **Subject Area**              | Media Management       |
+	| **Business Event**            | This use case applies when users need to attach photos to pump records.                  |
+	| **Actors**                    | User with pumps.create or pumps.update permission, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers uploading and managing pump photos with validation and secure storage. |
+	| **Preconditions**             | Pump must exist (for updates), user must have appropriate permissions. |
+	| **Termination Outcome**       | Photos are uploaded, validated, stored with UUID naming, and associated with pump record. |
+	| **Condition Affecting Outcome** | Invalid file format, file too large (>5MB), storage errors. |
+	| **Use Case Description**      | The system validates file type (png/jpg/jpeg/gif/webp) and size (&lt;5MB), generates UUID filename, creates pump-specific directory, saves file, and updates pump record with photo path. |
+	| **Use Case Associations**     | UC-020: Create Pump, UC-022: Update Pump. |
+	| **Traceability To**           | SRS-003. |
+	| **Input Summary**             | Pump ID, photo file(s). |
+	| **Output Summary**            | Confirmation with photo URLs. |
+	| **Usability Index**           | Medium, enhances documentation quality. |
+	| **Use Case Notes**            | Photos stored in `portfolio_app/static/pumps/{pump_id}/`. Supports drag-and-drop via react-dropzone. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-006: Delete Pump --- */}
+<TabItem label="UC-025">
+	<div className="use-case-content">
+
+	**Priority**: Medium  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Delete Pump Record                           |
+	| **Subject Area**              | Equipment Management       |
+	| **Business Event**            | This use case applies when authorized users need to remove pump records.                  |
+	| **Actors**                    | Pump owner or user with pumps.delete permission, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers permanent deletion of pump records and associated photos. |
+	| **Preconditions**             | Pump must exist, user must have ownership or `pumps.delete` permission. |
+	| **Termination Outcome**       | Pump record and associated photos are permanently deleted. Audit log entry is created. |
+	| **Condition Affecting Outcome** | Pump not found, insufficient permissions, or database constraints. |
+	| **Use Case Description**      | The system verifies permissions, deletes associated photos from storage, removes pump record from database, and creates audit log entry. |
+	| **Use Case Associations**     | UC-020: Create Pump, UC-022: Update Pump. |
+	| **Traceability To**           | SRS-003. |
+	| **Input Summary**             | Pump ID. |
+	| **Output Summary**            | Confirmation message. |
+	| **Usability Index**           | Medium, necessary for data maintenance. |
+	| **Use Case Notes**            | Consider implementing soft delete for audit retention. Deletes photo files from filesystem. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-007: Export Pump Data --- */}
+<TabItem label="UC-026">
+	<div className="use-case-content">
+
+	**Priority**: Low  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Export Pump Data to Excel                           |
+	| **Subject Area**              | Data Export       |
+	| **Business Event**            | This use case applies when users need to export pump data for reporting.                  |
+	| **Actors**                    | User with pumps.read permission, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers exporting pump data to Excel format for offline analysis. |
+	| **Preconditions**             | User must have `pumps.read` permission. |
+	| **Termination Outcome**       | Excel file is generated and downloaded. |
+	| **Condition Affecting Outcome** | No pump data or export errors. |
+	| **Use Case Description**      | The system retrieves pump data, formats it for Excel export, generates .xlsx file, and provides download. |
+	| **Use Case Associations**     | UC-021: View Pump Details, UC-023: View Analytics. |
+	| **Traceability To**           | SRS-003. |
+	| **Input Summary**             | Filter parameters (optional). |
+	| **Output Summary**            | Excel file with pump data. |
+	| **Usability Index**           | Low, convenience feature. |
+	| **Use Case Notes**            | Uses xlsx library. Exports all visible columns from TanStack Table. |
+
+	</div>
+</TabItem>
+</Tabs>
+
+## 3. Acceptance Criteria
+
+| Criterion           | Description / Acceptance Condition |
+|---------------------|----------------------------------|
+| **Pump Creation** | Authorized users can create pumps with all specifications and photos. |
+| **Photo Upload** | System accepts png/jpg/jpeg/gif/webp files up to 5MB. |
+| **Photo Storage** | Photos stored with UUID naming in pump-specific directories. |
+| **Specifications Tracking** | All 7 technical specifications are captured and validated. |
+| **Maintenance Scheduling** | Last and next maintenance dates are tracked. |
+| **Data Retrieval** | Pump data can be retrieved with sub-200ms response time. |
+| **Analytics** | Interactive charts display pump performance metrics. |
+| **Table Interface** | TanStack Table supports sorting, filtering, pagination. |
+| **Excel Export** | Users can export pump data to Excel format. |
+| **Audit Logging** | All CRUD operations are logged with user, timestamp, and changes. |
+| **Permission Enforcement** | Only authorized users can perform CRUD operations. |
+
+## 4. Non-Functional Requirements
+
+| Category     | Requirement |
+|-------------|-------------|
+| **Performance** | Pump retrieval &lt;200ms, list queries &lt;500ms, photo uploads &lt;2 seconds. |
+| **Security**    | Secure file upload validation, path traversal prevention, authorization checks. |
+| **Availability** | 99.95% uptime for pump management system. |
+| **Scalability**   | Support for 10,000+ pump records with 50,000+ photos. |
+| **Storage** | Efficient file storage with UUID naming to prevent conflicts. |
+| **Data Integrity** | Foreign key constraints, NOT NULL validations, audit trail. |
+| **Usability** | Intuitive CRUD interface with drag-and-drop photo upload. |
+
+## 5. Technical Specifications
+
+### 5.1 Database Schema
+
+**Table: tbl_pumps**
+- `ccn_pump` (Primary Key, Auto-increment)
+- `model` (String, Required)
+- `serial_number` (String, Unique, Required)
+- `location` (String, Required)
+- `purchase_date` (Date, Required)
+- `status` (Enum: active/inactive/maintenance, Required)
+- `flow_rate` (Float, L/min, Required)
+- `pressure` (Float, bar, Required)
+- `power` (Float, kW, Required)
+- `efficiency` (Float, %, Required)
+- `voltage` (Float, V, Required)
+- `current` (Float, A, Required)
+- `power_factor` (Float, Required)
+- `last_maintenance` (Date, Required)
+- `next_maintenance` (Date, Required)
+- `user_id` (Foreign Key -> tbl_users, Required)
+- `photos` (JSON, Array of filenames)
+- `created_at` (Timestamp, Auto-generated)
+- `updated_at` (Timestamp, Auto-updated)
+
+### 5.2 File Storage Structure
+
+```
+portfolio_app/
+  static/
+    pumps/
+      {pump_id}/
+        {uuid}.jpg
+        {uuid}.png
+        ...
+```
+
+### 5.3 API Endpoints
+
+| Method | Endpoint | Description | Auth | Permission |
+|--------|----------|-------------|------|------------|
+| POST | `/api/v1/pumps` | Create pump | Yes | pumps.create |
+| GET | `/api/v1/pumps` | List pumps | Yes | pumps.read |
+| GET | `/api/v1/pumps/{id}` | Get pump details | Yes | pumps.read |
+| PUT | `/api/v1/pumps/{id}` | Update pump | Yes | pumps.update |
+| DELETE | `/api/v1/pumps/{id}` | Delete pump | Yes | pumps.delete |
+| POST | `/api/v1/pumps/{id}/photos` | Upload photos | Yes | pumps.update |
+| GET | `/api/v1/pumps/{id}/photos/{filename}` | Get photo | Yes | pumps.read |
+
+### 5.4 Analytics Components
+
+**Chart Types:**
+1. **Efficiency Distribution** (Bar Chart)
+2. **Flow Rate vs Pressure** (Scatter Plot)
+3. **Power Consumption Trends** (Line Chart)
+4. **Maintenance Schedule** (Timeline)
+5. **Status Distribution** (Pie Chart)
+
+**Technologies:**
+- ECharts (echarts-for-react)
+- AG Charts (ag-charts-react)
+- TanStack Table (@tanstack/react-table)
+- XLSX Export (xlsx library)
+
+### 5.5 Validation Rules
+
+**File Upload:**
+- Allowed extensions: png, jpg, jpeg, gif, webp
+- Max file size: 5MB
+- Secure filename generation with UUID
+
+**Specifications:**
+- All numeric fields must be positive
+- Efficiency must be between 0-100%
+- Power factor must be between 0-1
+- Dates must be valid and parsable
+
+### 5.6 Audit Log Integration
+
+All pump operations are logged via `AuditLogService`:
+- Action type (create/update/delete)
+- User ID
+- Pump ID
+- Timestamp
+- Before/after values (for updates)
+- IP address
+- User agent
+
+## Additional Information
+
+| Field        | Detail |
+|-------------|--------|
+| **Stakeholders** | ruizdev7 Team, Industrial Equipment Managers |
+| **Attachments** | [API_DOCUMENTATION.md] |
+| **Tech Stack** | Flask, SQLAlchemy, Marshmallow, ECharts, AG Charts, TanStack Table |
+| **Frontend Components** | PumpCRUD, PumpDetails, PumpModal, PumpTableTanStack, DataAnalysisContentECharts, PhotoUpload, PhotoModal |
+
+## Final Approval
+
+| Name/Title            | Signature     | Date       |
+|----------------------|--------------|-----------|
+| **Client Representative** | ruizdev7  | 17-November-24 |
+| **Company Representative** | ruizdev7  | 17-November-24 |
+

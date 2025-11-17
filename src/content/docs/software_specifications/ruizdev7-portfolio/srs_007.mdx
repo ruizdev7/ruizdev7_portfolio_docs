@@ -1,0 +1,521 @@
+---
+title: Software Requirement Specification (SRS) - Audit Logs & Security Tracking
+description: This document defines requirements for implementing a comprehensive audit logging and security tracking system to monitor all critical system events, user actions, and security-related activities.
+---
+
+import {Tabs, TabItem} from '@astrojs/starlight/components';
+
+## General Information
+
+| Field              | Detail                          |
+|--------------------|--------------------------------|
+| **Company Name**   | ruizdev7                       |
+| **Document Title** | Audit Logs & Security Tracking - SRS |
+| **Document Number**| SRS-007                       |
+| **Version**        | 1.0                            |
+| **Specification Date** | 17-November-24                   |
+| **Status**         | Implemented                        |
+
+## Document Approval
+
+| Role               | Name            | Date       |
+|--------------------|-----------------|------------|
+| **Project Manager** | Joseph Ruiz   | 17-November-24   |
+| **Tech Lead**  | Joseph Ruiz     | 17-November-24   |
+
+## Revision History
+
+| Version | Date       | Changes Made                     | Author        |
+|---------|------------|----------------------------------|---------------|
+| 1.0     | 17-November-24   | Initial SRS Documentation               | Joseph Ruiz   |
+
+## 1. Introduction
+
+### 1.1 Purpose
+This document specifies the requirements for the implementation of an Audit Logging and Security Tracking System in the ruizdev7 Portfolio application.  
+The objective is to provide comprehensive monitoring and logging of all critical system events, user actions, security events, and resource modifications to ensure accountability, support security investigations, meet compliance requirements, and facilitate troubleshooting.
+
+### 1.2 Scope  
+The Audit Logs & Security Tracking System includes the following components:  
+
+- **Authentication Event Logging**: Track login, logout, failed login attempts, and token operations.  
+- **Resource Modification Logging**: Log all CRUD operations on critical resources (users, posts, pumps, etc.).  
+- **Security Event Tracking**: Monitor suspicious activities, permission denials, and security violations.  
+- **User Action Tracking**: Record user-initiated actions with context (IP address, user agent, timestamp).  
+- **Audit Log Retrieval**: Administrative interface for viewing and analyzing audit logs.  
+- **Log Filtering**: Search and filter logs by user, event type, resource, date range.  
+- **Immutable Records**: Ensure audit logs cannot be modified or deleted by regular operations.  
+- **Performance Optimization**: Efficient logging that doesn't impact application performance.  
+
+The implementation ensures:  
+- Complete audit trail for compliance (SOC 2, GDPR, PCI-DSS readiness)  
+- Security incident investigation capabilities  
+- Accountability for all system changes  
+- Non-intrusive logging mechanism  
+
+### 1.3 Definitions  
+- **Audit Log**: Immutable record of a system event with metadata (who, what, when, where, how).  
+- **Event Type**: Category of logged event (login, create, update, delete, permission_denied, etc.).  
+- **Resource**: Entity being acted upon (users, posts, pumps, categories, etc.).  
+- **Action**: Operation performed (create, read, update, delete).  
+- **IP Address**: Network address of the client making the request.  
+- **User Agent**: Browser/client information from HTTP headers.  
+- **Additional Data**: Optional JSON field for storing event-specific details.  
+- **Immutability**: Property ensuring logs cannot be altered after creation.  
+
+## 2. Functional Requirements
+
+<Tabs>
+	{/* --- UC-001: Log Authentication Events --- */}
+	<TabItem label="UC-051">
+	<div className="use-case-content">
+
+	**Priority**: Critical  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Log Authentication Events                           |
+	| **Subject Area**              | Security Monitoring       |
+	| **Business Event**            | This use case applies when authentication-related events occur (login, logout, failures).                  |
+	| **Actors**                    | System user, **AuditLogService**, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers logging all authentication events for security monitoring. |
+	| **Preconditions**             | Database must be accessible for log storage. |
+	| **Termination Outcome**       | Authentication event is logged with user ID, timestamp, IP address, and outcome. |
+	| **Condition Affecting Outcome** | Database connection errors (logs should queue for retry). |
+	| **Use Case Description**      | The system captures authentication events (successful login, logout, failed login attempts), records user email, IP address, user agent, timestamp, and stores immutable log entry. |
+	| **Use Case Associations**     | UC-008: User Login (SRS-005), UC-010: User Logout (SRS-005). |
+	| **Traceability To**           | SRS-007, SRS-005. |
+	| **Input Summary**             | User ID (if available), email, event type, IP address, user agent. |
+	| **Output Summary**            | Immutable audit log entry in tbl_audit_logs. |
+	| **Usability Index**           | Critical for security compliance. |
+	| **Use Case Notes**            | Failed login attempts logged without user ID (ccn_user=NULL). Helps detect brute force attacks. |
+
+	</div>
+	</TabItem>
+
+{/* --- UC-002: Log Resource Creation --- */}
+<TabItem label="UC-052">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Log Resource Creation                           |
+	| **Subject Area**              | Audit Trail       |
+	| **Business Event**            | This use case applies when new resources are created (users, posts, pumps, etc.).                  |
+	| **Actors**                    | Authenticated user, **AuditLogService**, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers logging all resource creation events. |
+	| **Preconditions**             | User must be authenticated. Resource creation must be successful. |
+	| **Termination Outcome**       | Creation event is logged with user, resource type, and description. |
+	| **Condition Affecting Outcome** | Logging failures should not prevent resource creation. |
+	| **Use Case Description**      | The system captures create operations on critical resources, records the user who performed the action, resource type, descriptive message, IP address, and timestamp. |
+	| **Use Case Associations**     | UC-014: Create Blog Post (SRS-006), UC-020: Create Pump (SRS-007), UC-041: User Registration (SRS-010). |
+	| **Traceability To**           | SRS-007. |
+	| **Input Summary**             | User ID, resource type (posts/users/pumps), description. |
+	| **Output Summary**            | Audit log entry with event_type='create'. |
+	| **Usability Index**           | High for compliance and troubleshooting. |
+	| **Use Case Notes**            | Includes relevant details like resource name, ID. Logged after successful database commit. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-003: Log Resource Updates --- */}
+<TabItem label="UC-053">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Log Resource Updates                           |
+	| **Subject Area**              | Audit Trail       |
+	| **Business Event**            | This use case applies when existing resources are modified.                  |
+	| **Actors**                    | Authenticated user, **AuditLogService**, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers logging all resource modification events with before/after values. |
+	| **Preconditions**             | User must be authenticated. Resource must exist. Update must be successful. |
+	| **Termination Outcome**       | Update event is logged with changed fields and values. |
+	| **Condition Affecting Outcome** | Logging should not fail the update operation. |
+	| **Use Case Description**      | The system captures update operations, records which fields changed, stores before/after values in additional_data (JSON), identifies the user who made changes, and timestamps the event. |
+	| **Use Case Associations**     | UC-016: Update Blog Post (SRS-006), UC-022: Update Pump (SRS-007), UC-043: Update User Profile (SRS-010). |
+	| **Traceability To**           | SRS-007. |
+	| **Input Summary**             | User ID, resource type, resource ID, changed fields, old values, new values. |
+	| **Output Summary**            | Audit log entry with event_type='update' and detailed change information. |
+	| **Usability Index**           | Critical for data integrity verification and dispute resolution. |
+	| **Use Case Notes**            | additional_data field stores JSON with before/after comparison. Passwords never logged. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-004: Log Resource Deletion --- */}
+<TabItem label="UC-054">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Log Resource Deletion                           |
+	| **Subject Area**              | Audit Trail       |
+	| **Business Event**            | This use case applies when resources are deleted or deactivated.                  |
+	| **Actors**                    | Authenticated user, **AuditLogService**, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers logging all resource deletion events. |
+	| **Preconditions**             | User must be authenticated with appropriate permissions. Resource must exist. |
+	| **Termination Outcome**       | Deletion event is logged with resource details before removal. |
+	| **Condition Affecting Outcome** | Logging should not prevent authorized deletions. |
+	| **Use Case Description**      | The system captures delete operations, records resource details before deletion, identifies the user, stores reason if provided, and timestamps the event. |
+	| **Use Case Associations**     | UC-018: Delete Blog Post (SRS-006), UC-025: Delete Pump (SRS-007), UC-050: Deactivate User (SRS-010). |
+	| **Traceability To**           | SRS-007. |
+	| **Input Summary**             | User ID, resource type, resource ID, description, optional reason. |
+	| **Output Summary**            | Audit log entry with event_type='delete'. |
+	| **Usability Index**           | Critical for compliance and recovery operations. |
+	| **Use Case Notes**            | Especially important for irreversible operations. May help restore deleted data. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-005: Log Security Events --- */}
+<TabItem label="UC-055">
+	<div className="use-case-content">
+
+	**Priority**: Critical  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Log Security Events                           |
+	| **Subject Area**              | Security Monitoring       |
+	| **Business Event**            | This use case applies when security-related events occur (permission denials, suspicious activities).                  |
+	| **Actors**                    | System user (potentially malicious), **AuditLogService**, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers logging security violations and suspicious activities. |
+	| **Preconditions**             | Security check must detect violation. |
+	| **Termination Outcome**       | Security event is logged with full context for investigation. |
+	| **Condition Affecting Outcome** | Logging must succeed even if request is blocked. |
+	| **Use Case Description**      | The system captures permission denials, failed authorization attempts, token violations, suspicious patterns, IP addresses, attempted actions, and timestamps for security analysis. |
+	| **Use Case Associations**     | UC-011: RBAC (SRS-005), UC-009: Token Refresh (SRS-005). |
+	| **Traceability To**           | SRS-007, SRS-005. |
+	| **Input Summary**             | User ID (if authenticated), attempted action, resource, reason for denial. |
+	| **Output Summary**            | Audit log entry with event_type='permission_denied' or 'security_violation'. |
+	| **Usability Index**           | Critical for security incident response. |
+	| **Use Case Notes**            | Helps identify attack patterns and unauthorized access attempts. Alerts can be configured. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-006: View Audit Logs --- */}
+<TabItem label="UC-056">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | View Audit Logs                           |
+	| **Subject Area**              | Administrative Interface       |
+	| **Business Event**            | This use case applies when administrators need to review audit logs for compliance or investigation.                  |
+	| **Actors**                    | Administrator with audit log access, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers retrieving and displaying audit logs with filtering capabilities. |
+	| **Preconditions**             | User must be administrator with appropriate permissions. |
+	| **Termination Outcome**       | Audit logs are displayed with full details and context. |
+	| **Condition Affecting Outcome** | No logs matching criteria or database errors. |
+	| **Use Case Description**      | The system retrieves audit logs from database, applies filters (user, event type, date range, resource), orders by timestamp (newest first), applies pagination, and returns formatted results. |
+	| **Use Case Associations**     | UC-051-055: All logging use cases. |
+	| **Traceability To**           | SRS-007. |
+	| **Input Summary**             | Optional filters: user_id, event_type, resource, action, date_from, date_to, page, per_page. |
+	| **Output Summary**            | Paginated list of audit logs with full details. |
+	| **Usability Index**           | Critical for administrators. |
+	| **Use Case Notes**            | Supports export to CSV for external analysis. Real-time updates via polling or WebSocket (future). |
+
+	</div>
+</TabItem>
+
+{/* --- UC-007: Search and Filter Audit Logs --- */}
+<TabItem label="UC-057">
+	<div className="use-case-content">
+
+	**Priority**: Medium  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Search and Filter Audit Logs                           |
+	| **Subject Area**              | Log Analysis       |
+	| **Business Event**            | This use case applies when administrators need to find specific events or patterns.                  |
+	| **Actors**                    | Administrator, Security Analyst, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers advanced search and filtering of audit logs. |
+	| **Preconditions**             | User must have audit log access permissions. |
+	| **Termination Outcome**       | Filtered audit logs matching search criteria are displayed. |
+	| **Condition Affecting Outcome** | Invalid search parameters or no matching results. |
+	| **Use Case Description**      | The system provides filtering by user, event type, resource type, action, date range, IP address, description text search, and combinations of filters with AND/OR logic. |
+	| **Use Case Associations**     | UC-056: View Audit Logs. |
+	| **Traceability To**           | SRS-007. |
+	| **Input Summary**             | Multiple filter criteria combined with logical operators. |
+	| **Output Summary**            | Filtered and sorted audit logs. |
+	| **Usability Index**           | High for security investigations. |
+	| **Use Case Notes**            | Full-text search on description field. Support for date range queries. Export filtered results. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-008: Generate Audit Reports --- */}
+<TabItem label="UC-058">
+	<div className="use-case-content">
+
+	**Priority**: Low  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Generate Audit Reports                           |
+	| **Subject Area**              | Compliance Reporting       |
+	| **Business Event**            | This use case applies when compliance reports are needed for audits or reviews.                  |
+	| **Actors**                    | Administrator, Compliance Officer, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers generating formatted audit reports for compliance purposes. |
+	| **Preconditions**             | Audit logs must exist for the reporting period. User must have admin access. |
+	| **Termination Outcome**       | Formatted audit report is generated and exported. |
+	| **Condition Affecting Outcome** | No logs in specified period or export errors. |
+	| **Use Case Description**      | The system aggregates audit logs for specified period, categorizes by event type, generates statistics (total events, by user, by resource), formats report (PDF/Excel/CSV), and provides download. |
+	| **Use Case Associations**     | UC-056: View Audit Logs, UC-057: Search and Filter. |
+	| **Traceability To**           | SRS-007. |
+	| **Input Summary**             | Report period (start date, end date), format (PDF/Excel/CSV), optional filters. |
+	| **Output Summary**            | Downloadable report file with audit summary and details. |
+	| **Usability Index**           | Low, periodic compliance requirement. |
+	| **Use Case Notes**            | Future enhancement. Template-based reporting. Scheduled report generation (monthly, quarterly). |
+
+	</div>
+</TabItem>
+</Tabs>
+
+## 3. Acceptance Criteria
+
+| Criterion           | Description / Acceptance Condition |
+|---------------------|----------------------------------|
+| **Authentication Logging** | All login, logout, and failed login attempts are logged. |
+| **CRUD Logging** | All create, update, delete operations on critical resources are logged. |
+| **User Attribution** | All logs include user ID (when authenticated) or indication of anonymous action. |
+| **IP Address Tracking** | Client IP addresses are captured for all logged events. |
+| **Timestamp Accuracy** | All logs have precise timestamps (to the second). |
+| **Immutability** | Audit logs cannot be modified or deleted through normal operations. |
+| **Performance** | Logging does not add more than 50ms to operation time. |
+| **Log Retrieval** | Administrators can view logs with filtering and pagination. |
+| **Security Events** | Permission denials and security violations are logged. |
+| **Data Integrity** | Additional context stored in JSON format for complex events. |
+
+## 4. Non-Functional Requirements
+
+| Category     | Requirement |
+|-------------|-------------|
+| **Performance** | Logging adds &lt;50ms overhead. Log queries return in &lt;500ms. |
+| **Storage**    | Efficient storage with automatic archiving after 1 year (configurable). |
+| **Security** | Logs stored in separate table with restricted access. No sensitive data (passwords) logged. |
+| **Availability** | 99.99% availability for logging service. Failed logs queued for retry. |
+| **Scalability**   | Support for 1M+ log entries without performance degradation. |
+| **Compliance** | Meets SOC 2, GDPR, PCI-DSS audit trail requirements. |
+| **Retention** | Logs retained for minimum 1 year, configurable up to 7 years. |
+| **Integrity** | Cryptographic hash verification for log integrity (future enhancement). |
+
+## 5. Technical Specifications
+
+### 5.1 Database Schema
+
+**Table: tbl_audit_logs**
+- `ccn_audit_log` (Primary Key, Auto-increment)
+- `ccn_user` (Foreign Key -> tbl_users, Nullable - NULL for unauthenticated events)
+- `event_type` (String(50), Required - login, logout, create, update, delete, permission_denied, etc.)
+- `resource` (String(50), Required - users, posts, pumps, categories, auth, etc.)
+- `action` (String(20), Required - create, read, update, delete)
+- `description` (Text, Required - Human-readable description)
+- `ip_address` (String(45), Optional - IPv4 or IPv6)
+- `user_agent` (String(500), Optional - Browser/client information)
+- `additional_data` (Text/JSON, Optional - Event-specific details)
+- `created_at` (Timestamp, Required, Indexed - Auto-generated, immutable)
+
+**Indexes:**
+- Primary key on `ccn_audit_log`
+- Index on `ccn_user` for user-specific queries
+- Index on `event_type` for filtering
+- Index on `created_at` for date range queries
+- Composite index on `(resource, action, created_at)` for resource queries
+
+### 5.2 Service Layer Architecture
+
+**AuditLogService (Singleton):**
+
+**Core Methods:**
+- `create_log(user_id, event_type, resource, action, description, ip, user_agent, additional_data)`: Base logging method
+- `log_login(user_id, email, ip)`: Successful login
+- `log_logout(user_id, email)`: User logout
+- `log_failed_login(email, ip)`: Failed login attempt
+- `log_create(user_id, resource, description)`: Resource creation
+- `log_update(user_id, resource, description)`: Resource update
+- `log_delete(user_id, resource, description)`: Resource deletion
+
+**Automatic Context Capture:**
+- IP address from `request.remote_addr`
+- User agent from `request.headers['User-Agent']`
+- Timestamp automatically set by database
+
+### 5.3 Event Types
+
+| Event Type | Description | Example |
+|------------|-------------|---------|
+| login | Successful authentication | User logged in |
+| logout | User session termination | User logged out |
+| login_failed | Failed authentication attempt | Failed login for email X |
+| create | Resource creation | Created post "Title" |
+| update | Resource modification | Updated pump #123 |
+| delete | Resource deletion | Deleted user account |
+| permission_denied | Authorization failure | User lacks posts.create permission |
+| token_refresh | JWT token renewal | Access token refreshed |
+| password_change | Password update | User changed password |
+| password_reset | Password reset via email | Password reset requested |
+| role_assigned | Role granted to user | Assigned admin role to user |
+| role_removed | Role revoked from user | Removed moderator role |
+
+### 5.4 API Endpoints
+
+| Method | Endpoint | Description | Auth | Permission |
+|--------|----------|-------------|------|------------|
+| GET | `/api/v1/audit-logs` | List audit logs (paginated) | Yes | Admin |
+| GET | `/api/v1/audit-logs/{id}` | Get specific log entry | Yes | Admin |
+| GET | `/api/v1/audit-logs/user/{user_id}` | Get logs for specific user | Yes | Admin |
+| GET | `/api/v1/audit-logs/export` | Export logs to CSV/Excel | Yes | Admin |
+| GET | `/api/v1/audit-logs/stats` | Get audit statistics | Yes | Admin |
+
+### 5.5 Logging Integration Points
+
+**Authentication System (SRS-005):**
+- Login success/failure
+- Logout events
+- Token refresh
+- Token revocation
+
+**User Management (SRS-010):**
+- User creation
+- Profile updates
+- Email changes
+- Password changes
+- Password resets
+- Account deactivation
+- Role assignments
+
+**Blog/Posts (SRS-006):**
+- Post creation
+- Post updates
+- Post deletion
+
+**Pump Management (SRS-007):**
+- Pump creation
+- Specification updates
+- Photo uploads
+- Pump deletion
+
+**Financial Calculator (SRS-009):**
+- Calculation creation
+- Calculation updates
+- Calculation deletion
+
+**Contact Form (SRS-008):**
+- Message submission
+- Message read status changes
+
+### 5.6 Log Query Performance
+
+**Optimization Strategies:**
+1. **Indexing**: Multi-column indexes for common query patterns
+2. **Partitioning**: Date-based partitioning for large datasets
+3. **Archiving**: Move old logs (>1 year) to archive tables
+4. **Caching**: Redis cache for frequently accessed log statistics
+5. **Read Replicas**: Separate database read replicas for log queries
+
+### 5.7 Security Measures
+
+**Access Control:**
+- Only administrators can view audit logs
+- Logs cannot be modified or deleted via API
+- Database triggers prevent direct log modification
+- Separate database user with append-only permissions
+
+**Data Protection:**
+- Never log passwords (even hashed)
+- Sensitive data redacted or tokenized
+- PII handling according to GDPR requirements
+- Encryption at rest for log storage
+
+**Integrity Verification:**
+- Sequential log IDs prevent tampering
+- Checksums for log integrity (future)
+- Regular backup of audit logs
+- Immutable append-only storage
+
+### 5.8 Frontend Components
+
+**Admin Dashboard:**
+- Audit Logs table with filtering
+- Event timeline visualization
+- User activity heatmap
+- Security alerts panel
+
+**Components:**
+- `EventsLogs.jsx` - Audit log viewer
+- `Security.jsx` - Security events dashboard
+- `AuditLogTable.jsx` - Paginated log table (future)
+- `LogExport.jsx` - Export functionality (future)
+
+### 5.9 Monitoring and Alerting
+
+**Real-time Alerts (Future):**
+- Multiple failed login attempts (brute force detection)
+- Permission denial patterns (unauthorized access attempts)
+- Unusual user activity (anomaly detection)
+- Administrative actions requiring approval
+
+**Integration:**
+- Webhook notifications for critical events
+- Email alerts to administrators
+- Slack/Teams integration for security team
+- SIEM integration (Splunk, ELK Stack)
+
+### 5.10 Compliance Mapping
+
+**SOC 2 Type II:**
+- Complete audit trail of all system changes
+- User attribution for all actions
+- Immutable log storage
+- Access controls on log data
+
+**GDPR:**
+- Right to access: Users can request their audit trail
+- Right to erasure: Special handling for deleted users
+- Data minimization: Only essential data logged
+- Secure storage: Encryption and access controls
+
+**PCI-DSS (if handling payments):**
+- Log all access to cardholder data
+- Retain logs for minimum 1 year
+- Protect log data from tampering
+- Regular log review processes
+
+## Additional Information
+
+| Field        | Detail |
+|-------------|--------|
+| **Stakeholders** | ruizdev7 Team, Security Team, Compliance Officers, Auditors |
+| **Attachments** | [test_audit_logs.py] |
+| **Tech Stack** | Flask, SQLAlchemy, PostgreSQL/MySQL |
+| **Frontend Components** | EventsLogs.jsx, Security.jsx |
+| **Testing** | Unit tests in test_audit_logs.py |
+| **Future Enhancements** | Log integrity verification, automated compliance reports, ML-based anomaly detection |
+
+## Final Approval
+
+| Name/Title            | Signature     | Date       |
+|----------------------|--------------|-----------|
+| **Client Representative** | ruizdev7  | 17-November-24 |
+| **Company Representative** | ruizdev7  | 17-November-24 |
+

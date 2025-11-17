@@ -1,0 +1,547 @@
+---
+title: Software Requirement Specification (SRS) - User Management System
+description: This document defines requirements for implementing a comprehensive user management system with account creation, profile management, password reset, role assignment, and security features.
+---
+
+import {Tabs, TabItem} from '@astrojs/starlight/components';
+
+## General Information
+
+| Field              | Detail                          |
+|--------------------|--------------------------------|
+| **Company Name**   | ruizdev7                       |
+| **Document Title** | User Management System - SRS |
+| **Document Number**| SRS-006                       |
+| **Version**        | 1.0                            |
+| **Specification Date** | 17-November-24                   |
+| **Status**         | Implemented                        |
+
+## Document Approval
+
+| Role               | Name            | Date       |
+|--------------------|-----------------|------------|
+| **Project Manager** | Joseph Ruiz   | 17-November-24   |
+| **Tech Lead**  | Joseph Ruiz     | 17-November-24   |
+
+## Revision History
+
+| Version | Date       | Changes Made                     | Author        |
+|---------|------------|----------------------------------|---------------|
+| 1.0     | 17-November-24   | Initial SRS Documentation               | Joseph Ruiz   |
+
+## 1. Introduction
+
+### 1.1 Purpose
+This document specifies the requirements for the implementation of a User Management System in the ruizdev7 Portfolio application.  
+The objective is to provide comprehensive user account lifecycle management including registration, authentication, profile management, password reset, role assignment, and administrative controls with audit logging.
+
+### 1.2 Scope  
+The User Management System includes the following components:  
+
+- **User Registration**: Account creation with email verification support.  
+- **User Profile Management**: View and update user information (name, email, password).  
+- **Password Management**: Secure password change and reset functionality with email tokens.  
+- **Role Assignment**: Administrative capability to assign and manage user roles.  
+- **User Listing**: Administrative interface for viewing all users.  
+- **Account Deactivation**: Soft delete capability for disabling accounts.  
+- **Email Verification**: Token-based email confirmation (future enhancement).  
+- **Password Reset via Email**: Secure token-based password recovery.  
+- **Multi-Tab Synchronization**: Logout synchronization across browser tabs.  
+- **Audit Logging**: Track all user management actions.  
+
+The implementation ensures:  
+- Secure password hashing with bcrypt  
+- Data validation and sanitization  
+- Authorization checks for sensitive operations  
+- Integration with authentication and authorization systems  
+
+### 1.3 Definitions  
+- **User Profile**: Complete user information including personal details and account metadata.  
+- **Password Hash**: Bcrypt-hashed password stored in database.  
+- **Reset Token**: Time-limited token for password reset via email.  
+- **Account ID**: Unique identifier generated for each user account.  
+- **Role Assignment**: Process of granting permissions to users via role associations.  
+- **Soft Delete**: Marking account as inactive without physical deletion.  
+- **Multi-Tab Sync**: Coordinating authentication state across browser tabs using localStorage events.  
+
+## 2. Functional Requirements
+
+<Tabs>
+	{/* --- UC-001: User Registration --- */}
+	<TabItem label="UC-041">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | User Registration                           |
+	| **Subject Area**              | Account Management       |
+	| **Business Event**            | This use case applies when new users want to create an account.                  |
+	| **Actors**                    | New user, Administrator (for admin-created accounts), **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers creating new user accounts with validation and security measures. |
+	| **Preconditions**             | Email must not be already registered. For admin creation: admin must be authenticated with users.create permission. |
+	| **Termination Outcome**       | New user account is created with hashed password and unique account ID. |
+	| **Condition Affecting Outcome** | Duplicate email, invalid input format, or database errors. |
+	| **Use Case Description**      | The system validates user input (first name, middle name, last name, email, password), checks for duplicate email, hashes the password using bcrypt, generates unique account ID, creates user record, and logs the action. |
+	| **Use Case Associations**     | UC-042: User Login (SRS-005), UC-045: Assign User Role. |
+	| **Traceability To**           | SRS-006. |
+	| **Input Summary**             | First name, middle name (optional), last name, email (unique), password (min 8 chars). |
+	| **Output Summary**            | Created user with sanitized data (no password in response). |
+	| **Usability Index**           | Critical, entry point for new users. |
+	| **Use Case Notes**            | Password must meet complexity requirements. Email format validated. Account ID generated automatically. |
+
+	</div>
+	</TabItem>
+
+{/* --- UC-002: View User Profile --- */}
+<TabItem label="UC-042">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | View User Profile                           |
+	| **Subject Area**              | Profile Management       |
+	| **Business Event**            | This use case applies when users or administrators need to view user details.                  |
+	| **Actors**                    | Authenticated user (self), Administrator, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers retrieving and displaying user profile information. |
+	| **Preconditions**             | User must be authenticated. For viewing others: must have users.read permission. |
+	| **Termination Outcome**       | User profile data is displayed with roles and permissions. |
+	| **Condition Affecting Outcome** | User not found, insufficient permissions, or database errors. |
+	| **Use Case Description**      | The system authenticates the request, verifies permissions (users can always view their own profile), retrieves user data including associated roles and permissions, and returns sanitized information (no password). |
+	| **Use Case Associations**     | UC-043: Update User Profile, UC-044: View Current User Info (whoami). |
+	| **Traceability To**           | SRS-006. |
+	| **Input Summary**             | User ID or "current" for authenticated user. |
+	| **Output Summary**            | User data with name, email, account ID, roles, permissions, creation date. |
+	| **Usability Index**           | High, essential for profile viewing. |
+	| **Use Case Notes**            | Password hash never included in responses. Frontend component: UserProfile.jsx. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-003: Update User Profile --- */}
+<TabItem label="UC-043">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Update User Profile                           |
+	| **Subject Area**              | Profile Management       |
+	| **Business Event**            | This use case applies when users need to modify their profile information.                  |
+	| **Actors**                    | Authenticated user, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers updating user details including name and email. |
+	| **Preconditions**             | User must be authenticated. For updating others: must have users.update permission. |
+	| **Termination Outcome**       | User profile is updated with new information. Audit log entry created. |
+	| **Condition Affecting Outcome** | User not found, email already in use, insufficient permissions, or validation errors. |
+	| **Use Case Description**      | The system validates permissions, checks new email for uniqueness, validates input format, updates user record, and logs the modification with before/after values. |
+	| **Use Case Associations**     | UC-042: View User Profile, UC-046: Change Email, UC-047: Change Password. |
+	| **Traceability To**           | SRS-006. |
+	| **Input Summary**             | User ID, updated fields (first_name, middle_name, last_name, email). |
+	| **Output Summary**            | Updated user data with confirmation. |
+	| **Usability Index**           | High, common user operation. |
+	| **Use Case Notes**            | Email changes require uniqueness validation. Audit logs capture old and new values. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-004: View Current User Info (whoami) --- */}
+<TabItem label="UC-044">
+	<div className="use-case-content">
+
+	**Priority**: Medium  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | View Current User Info (whoami)                           |
+	| **Subject Area**              | Session Management       |
+	| **Business Event**            | This use case applies when the system needs to identify the current authenticated user.                  |
+	| **Actors**                    | Authenticated user, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers retrieving current user's identity and permissions from JWT token. |
+	| **Preconditions**             | User must have valid JWT access token. |
+	| **Termination Outcome**       | Current user's information and permissions are returned. |
+	| **Condition Affecting Outcome** | Invalid token, expired token, or user not found. |
+	| **Use Case Description**      | The system extracts user identity from JWT token, retrieves full user data including roles and permissions, and returns formatted response. |
+	| **Use Case Associations**     | UC-042: View User Profile, UC-008: User Login (SRS-005). |
+	| **Traceability To**           | SRS-006, SRS-005. |
+	| **Input Summary**             | Valid JWT access token in Authorization header. |
+	| **Output Summary**            | User info, roles, permissions. |
+	| **Usability Index**           | Medium, used for UI personalization and authorization checks. |
+	| **Use Case Notes**            | Endpoint: GET /api/v1/whoami. Used by frontend to initialize user context. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-005: Assign User Role --- */}
+<TabItem label="UC-045">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Assign User Role                           |
+	| **Subject Area**              | Authorization Management       |
+	| **Business Event**            | This use case applies when administrators need to grant roles to users.                  |
+	| **Actors**                    | Administrator with users.update permission, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers assigning roles to user accounts. |
+	| **Preconditions**             | User must exist, role must exist, administrator must have users.update permission. |
+	| **Termination Outcome**       | Role is assigned to user, granting associated permissions. |
+	| **Condition Affecting Outcome** | User not found, role not found, insufficient permissions, or duplicate assignment. |
+	| **Use Case Description**      | The system verifies administrator permissions, validates user and role existence, creates user-role association, and logs the assignment. |
+	| **Use Case Associations**     | UC-012: Permission Management (SRS-005), UC-049: List Users. |
+	| **Traceability To**           | SRS-006, SRS-005. |
+	| **Input Summary**             | User ID, role name or role ID. |
+	| **Output Summary**            | Confirmation of role assignment with updated user permissions. |
+	| **Usability Index**           | High for administrators. |
+	| **Use Case Notes**            | Users can have multiple roles. Permissions are cumulative. Audit logged. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-006: Change Email --- */}
+<TabItem label="UC-046">
+	<div className="use-case-content">
+
+	**Priority**: Medium  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Change Email Address                           |
+	| **Subject Area**              | Account Security       |
+	| **Business Event**            | This use case applies when users need to update their email address.                  |
+	| **Actors**                    | Authenticated user, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers changing user email with validation and verification. |
+	| **Preconditions**             | User must be authenticated. Current password must be provided for security. |
+	| **Termination Outcome**       | Email is updated after validation. Audit log entry created. |
+	| **Condition Affecting Outcome** | Incorrect password, email already in use, invalid format, or database errors. |
+	| **Use Case Description**      | The system verifies current password, validates new email format and uniqueness, updates email address, and logs the change. |
+	| **Use Case Associations**     | UC-043: Update User Profile, UC-047: Change Password. |
+	| **Traceability To**           | SRS-006. |
+	| **Input Summary**             | Current password (for verification), new email address. |
+	| **Output Summary**            | Confirmation of email change. |
+	| **Usability Index**           | Medium, security-sensitive operation. |
+	| **Use Case Notes**            | Requires password verification to prevent unauthorized changes. Consider email verification. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-007: Change Password --- */}
+<TabItem label="UC-047">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Change Password                           |
+	| **Subject Area**              | Account Security       |
+	| **Business Event**            | This use case applies when users want to update their password.                  |
+	| **Actors**                    | Authenticated user, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers secure password changes with current password verification. |
+	| **Preconditions**             | User must be authenticated with valid session. |
+	| **Termination Outcome**       | Password is updated with new bcrypt hash. Audit log entry created. |
+	| **Condition Affecting Outcome** | Incorrect current password, weak new password, or validation errors. |
+	| **Use Case Description**      | The system verifies current password against stored hash, validates new password complexity, generates new bcrypt hash, updates database, and logs the change. |
+	| **Use Case Associations**     | UC-046: Change Email, UC-048: Reset Password. |
+	| **Traceability To**           | SRS-006. |
+	| **Input Summary**             | Current password (for verification), new password (min 8 chars, complexity requirements). |
+	| **Output Summary**            | Confirmation of password change. |
+	| **Usability Index**           | High, critical security feature. |
+	| **Use Case Notes**            | New password must differ from current. Audit logged without storing passwords. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-008: Reset Password via Email --- */}
+<TabItem label="UC-048">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Reset Password via Email                           |
+	| **Subject Area**              | Account Recovery       |
+	| **Business Event**            | This use case applies when users forget their password and need recovery.                  |
+	| **Actors**                    | User (unauthenticated), **Email Service**, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers password reset using email-based token verification. |
+	| **Preconditions**             | User account must exist with valid email address. |
+	| **Termination Outcome**       | Password is reset with new hash after token verification. |
+	| **Condition Affecting Outcome** | Email not found, invalid token, expired token, or email service errors. |
+	| **Use Case Description**      | User requests password reset → System generates secure token with expiration → Email sent with reset link → User clicks link and submits new password → System validates token and updates password. |
+	| **Use Case Associations**     | UC-047: Change Password, UC-042: View User Profile. |
+	| **Traceability To**           | SRS-006. |
+	| **Input Summary**             | Step 1: Email address. Step 2: Reset token, new password. |
+	| **Output Summary**            | Confirmation of password reset. |
+	| **Usability Index**           | Critical for account recovery. |
+	| **Use Case Notes**            | Tokens expire after 1 hour. One-time use tokens. Email via Flask-Mail. Frontend: ForgetPassword.jsx. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-009: List All Users --- */}
+<TabItem label="UC-049">
+	<div className="use-case-content">
+
+	**Priority**: Medium  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | List All Users                           |
+	| **Subject Area**              | Administrative Interface       |
+	| **Business Event**            | This use case applies when administrators need to view all system users.                  |
+	| **Actors**                    | Administrator with users.read permission, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers retrieving complete user list with roles. |
+	| **Preconditions**             | User must have users.read permission. |
+	| **Termination Outcome**       | Paginated list of all users with roles and metadata. |
+	| **Condition Affecting Outcome** | Insufficient permissions or database errors. |
+	| **Use Case Description**      | The system verifies admin permissions, retrieves all users from database, includes role information, applies pagination if requested, and returns formatted list. |
+	| **Use Case Associations**     | UC-045: Assign User Role, UC-050: Deactivate User. |
+	| **Traceability To**           | SRS-006. |
+	| **Input Summary**             | Optional: page number, items per page, filter criteria. |
+	| **Output Summary**            | Array of users with roles and account status. |
+	| **Usability Index**           | High for administrators. |
+	| **Use Case Notes**            | Frontend component: UserManagement.jsx. Supports search and filtering. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-010: Deactivate User Account --- */}
+<TabItem label="UC-050">
+	<div className="use-case-content">
+
+	**Priority**: Low  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Deactivate User Account                           |
+	| **Subject Area**              | Account Management       |
+	| **Business Event**            | This use case applies when administrators need to disable user accounts.                  |
+	| **Actors**                    | Administrator with users.delete permission, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers soft deletion/deactivation of user accounts. |
+	| **Preconditions**             | User must exist, administrator must have users.delete permission. |
+	| **Termination Outcome**       | User account is marked as inactive. All active tokens are revoked. |
+	| **Condition Affecting Outcome** | User not found, insufficient permissions, or cannot deactivate own account. |
+	| **Use Case Description**      | The system verifies admin permissions, prevents self-deactivation, marks account as inactive, revokes all JWT tokens, and logs the action. |
+	| **Use Case Associations**     | UC-049: List All Users, UC-041: User Registration. |
+	| **Traceability To**           | SRS-006. |
+	| **Input Summary**             | User ID, reason for deactivation (optional). |
+	| **Output Summary**            | Confirmation of account deactivation. |
+	| **Usability Index**           | Low, administrative maintenance feature. |
+	| **Use Case Notes**            | Soft delete preserves data for audit. Consider reactivation feature. Audit logged. |
+
+	</div>
+</TabItem>
+</Tabs>
+
+## 3. Acceptance Criteria
+
+| Criterion           | Description / Acceptance Condition |
+|---------------------|----------------------------------|
+| **User Creation** | New users can register with unique email addresses. |
+| **Password Security** | Passwords hashed with bcrypt, never stored or returned in plain text. |
+| **Profile Viewing** | Users can view their own profile; admins can view all profiles. |
+| **Profile Updates** | Users can update name and email with proper validation. |
+| **Password Changes** | Users can change password with current password verification. |
+| **Password Reset** | Users can reset forgotten passwords via email token. |
+| **Role Assignment** | Admins can assign multiple roles to users. |
+| **Email Uniqueness** | System prevents duplicate email registrations. |
+| **Token Security** | Reset tokens expire after 1 hour and are single-use. |
+| **Audit Logging** | All user management actions are logged with details. |
+| **Authorization** | Proper permission checks for all administrative operations. |
+
+## 4. Non-Functional Requirements
+
+| Category     | Requirement |
+|-------------|-------------|
+| **Performance** | User operations &lt;300ms, list queries &lt;500ms. |
+| **Security**    | Bcrypt password hashing (cost factor 12), secure token generation, HTTPS required in production. |
+| **Availability** | 99.95% uptime for user management services. |
+| **Scalability**   | Support for 100,000+ user accounts. |
+| **Usability** | Intuitive profile management interface, clear error messages. |
+| **Data Integrity** | Email uniqueness constraints, foreign key integrity. |
+| **Auditability** | Complete audit trail for all account modifications. |
+| **Compliance** | GDPR-compliant data handling, right to erasure support. |
+
+## 5. Technical Specifications
+
+### 5.1 Database Schema
+
+**Table: tbl_users**
+- `ccn_user` (Primary Key, Auto-increment)
+- `first_name` (String, Max 50 chars, Required)
+- `middle_name` (String, Max 50 chars, Optional)
+- `last_name` (String, Max 50 chars, Required)
+- `email` (String, Unique, Required, Indexed)
+- `password` (String, Bcrypt hash, Required)
+- `account_id` (String, Unique, Auto-generated)
+- `is_active` (Boolean, Default: True)
+- `email_verified` (Boolean, Default: False)
+- `created_at` (Timestamp, Auto-generated)
+- `updated_at` (Timestamp, Auto-updated)
+- `last_login` (Timestamp, Nullable)
+
+**Relationships:**
+- One-to-Many with tbl_user_roles
+- One-to-Many with tbl_posts (as author)
+- One-to-Many with tbl_pumps (as owner)
+
+### 5.2 API Endpoints
+
+| Method | Endpoint | Description | Auth | Permission |
+|--------|----------|-------------|------|------------|
+| POST | `/api/v1/users` | Create user | Yes | users.create (admin) or None (self-registration) |
+| GET | `/api/v1/users` | List all users | Yes | users.read |
+| GET | `/api/v1/users/{id}` | Get user details | Yes | users.read or self |
+| PUT | `/api/v1/users/{id}` | Update user | Yes | users.update or self |
+| DELETE | `/api/v1/users/{id}` | Deactivate user | Yes | users.delete |
+| GET | `/api/v1/whoami` | Get current user | Yes | None |
+| PUT | `/api/v1/users/{id}/email` | Change email | Yes | Self only |
+| PUT | `/api/v1/users/{id}/password` | Change password | Yes | Self only |
+| POST | `/api/v1/forgot-password` | Request reset token | No | None |
+| POST | `/api/v1/reset-password` | Reset password with token | No | None |
+| POST | `/api/v1/users/{id}/roles` | Assign role | Yes | users.update |
+| DELETE | `/api/v1/users/{id}/roles/{role}` | Remove role | Yes | users.update |
+
+### 5.3 Validation Schemas
+
+**SchemaUser (Marshmallow):**
+- `first_name`: Required, String, 1-50 chars
+- `middle_name`: Optional, String, max 50 chars
+- `last_name`: Required, String, 1-50 chars
+- `email`: Required, Valid email format, unique
+- `password`: Required on creation, min 8 chars, complexity requirements
+
+**UpdateEmailSchema:**
+- `current_password`: Required for verification
+- `new_email`: Required, valid email format, unique
+
+**UpdatePasswordSchema:**
+- `current_password`: Required for verification
+- `new_password`: Required, min 8 chars, must differ from current
+
+**ForgotPasswordSchema:**
+- `email`: Required, must exist in system
+
+**ResetPasswordSchema:**
+- `token`: Required, must be valid and not expired
+- `new_password`: Required, min 8 chars
+
+### 5.4 Password Reset Flow
+
+1. **Request Reset:**
+   - POST /api/v1/forgot-password with email
+   - System generates secure random token
+   - Token stored with 1-hour expiration
+   - Email sent with reset link: `/reset-password?token={token}`
+
+2. **Reset Password:**
+   - User clicks link, enters new password
+   - POST /api/v1/reset-password with token and new password
+   - System validates token and expiration
+   - Password updated, token invalidated
+   - User redirected to login
+
+### 5.5 Frontend Components
+
+**Authentication:**
+- Login.jsx - User login form
+- SignUp.jsx - User registration form
+- ForgetPassword.jsx - Password reset request
+- ChangePassword.jsx - Password change form
+
+**User Management:**
+- UserProfile.jsx - Profile display and edit
+- UserView.jsx - User detail view
+- UserManagement.jsx - Admin user list
+
+**Authorization:**
+- PermissionGuard.jsx - Component-level permission checks
+- RoleGuard.jsx - Component-level role checks
+- PermissionsDashboard.jsx - User permissions overview
+
+### 5.6 Security Measures
+
+1. **Password Hashing:**
+   - Bcrypt with cost factor 12
+   - Salt automatically generated
+   - One-way hashing (cannot be decrypted)
+
+2. **Password Requirements:**
+   - Minimum 8 characters
+   - Recommended: mix of uppercase, lowercase, numbers, symbols
+
+3. **Reset Token Security:**
+   - Cryptographically secure random generation (secrets.token_urlsafe)
+   - 1-hour expiration
+   - Single-use (invalidated after reset)
+   - Stored securely (consider Redis in production)
+
+4. **Authorization:**
+   - JWT token validation
+   - Permission-based access control
+   - Self-service operations (users can modify own data)
+   - Admin-only operations protected
+
+5. **Input Validation:**
+   - Email format validation
+   - SQL injection prevention via ORM
+   - XSS prevention through sanitization
+
+### 5.7 Email Configuration
+
+**Flask-Mail Setup:**
+- SMTP configuration for password reset emails
+- HTML email templates
+- Asynchronous sending for performance
+- Delivery status tracking
+
+**Email Templates:**
+- Password reset with secure link
+- Welcome email (optional)
+- Email verification (future)
+
+### 5.8 Multi-Tab Synchronization
+
+**Implementation:**
+- localStorage for state persistence
+- Storage event listeners for cross-tab communication
+- Logout propagation across all tabs
+- Token refresh synchronization
+
+**Hook: useMultiTabSync.js**
+- Monitors authentication state
+- Broadcasts logout events
+- Synchronizes token updates
+
+## Additional Information
+
+| Field        | Detail |
+|-------------|--------|
+| **Stakeholders** | ruizdev7 Team, System Users, Administrators |
+| **Attachments** | [API_DOCUMENTATION.md], [ROLES_AND_PERMISSIONS.md] |
+| **Tech Stack** | Flask, SQLAlchemy, Marshmallow, Flask-Mail, bcrypt, React |
+| **Frontend Components** | Login, SignUp, UserProfile, UserManagement, ChangePassword, ForgetPassword |
+| **Frontend Hooks** | useMultiTabSync, usePermissions |
+
+## Final Approval
+
+| Name/Title            | Signature     | Date       |
+|----------------------|--------------|-----------|
+| **Client Representative** | ruizdev7  | 17-November-24 |
+| **Company Representative** | ruizdev7  | 17-November-24 |
+

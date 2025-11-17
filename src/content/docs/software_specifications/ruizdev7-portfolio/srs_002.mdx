@@ -1,0 +1,335 @@
+---
+title: Software Requirement Specification (SRS) - Blog/Posts Management System
+description: This document defines requirements for implementing a comprehensive blog and content management system with CRUD operations, category management, and slug-based routing.
+---
+
+import {Tabs, TabItem} from '@astrojs/starlight/components';
+
+## General Information
+
+| Field              | Detail                          |
+|--------------------|--------------------------------|
+| **Company Name**   | ruizdev7                       |
+| **Document Title** | Blog/Posts Management System - SRS |
+| **Document Number**| SRS-002                       |
+| **Version**        | 1.0                            |
+| **Specification Date** | 17-November-24                   |
+| **Status**         | Implemented                        |
+
+## Document Approval
+
+| Role               | Name            | Date       |
+|--------------------|-----------------|------------|
+| **Project Manager** | Joseph Ruiz   | 17-November-24   |
+| **Tech Lead**  | Joseph Ruiz     | 17-November-24   |
+
+## Revision History
+
+| Version | Date       | Changes Made                     | Author        |
+|---------|------------|----------------------------------|---------------|
+| 1.0     | 17-November-24   | Initial SRS Documentation               | Joseph Ruiz   |
+
+## 1. Introduction
+
+### 1.1 Purpose
+This document specifies the requirements for the implementation of a Blog and Posts Management System in the ruizdev7 Portfolio application.  
+The objective is to provide a flexible content management solution that allows users to create, read, update, and delete blog posts, manage categories, and view featured content with proper authorization controls.
+
+### 1.2 Scope  
+The Blog/Posts Management System includes the following components:  
+
+- **Post CRUD Operations**: Complete create, read, update, delete functionality for blog posts.  
+- **Category Management**: Organize posts into categories for better content organization.  
+- **Slug-Based Routing**: SEO-friendly URLs using automatically generated slugs.  
+- **Featured Posts**: Highlight the most recent or important posts.  
+- **Random Post Selection**: Display random posts for content discovery.  
+- **Author Attribution**: Associate posts with user accounts.  
+- **Post Table View**: Administrative interface for managing all posts.  
+- **Permission-Based Access**: Role-based access control for content management.  
+
+The implementation ensures:  
+- Data integrity through SQLAlchemy ORM  
+- SEO optimization with slug-based URLs  
+- Scalable content structure  
+- Integration with the authentication system  
+
+### 1.3 Definitions  
+- **Post**: A blog article containing title, content, author, category, and metadata.  
+- **Slug**: A URL-friendly string derived from the post title (e.g., "my-first-post").  
+- **Featured Post**: The most recent or manually selected post displayed prominently.  
+- **Category**: A classification tag for organizing related posts.  
+- **Author**: The user who created the post.  
+- **Published At**: Timestamp indicating when the post was published.  
+
+## 2. Functional Requirements
+
+<Tabs>
+	{/* --- UC-001: Create Blog Post --- */}
+	<TabItem label="UC-014">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Create Blog Post                           |
+	| **Subject Area**              | Content Management       |
+	| **Business Event**            | This use case applies when an authorized user wants to create a new blog post.                  |
+	| **Actors**                    | Authenticated user with posts.create permission, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers the creation of a new blog post with title, content, author, and category. |
+	| **Preconditions**             | User must be authenticated and have `posts.create` permission. |
+	| **Termination Outcome**       | New post is created and stored in the database with a generated slug. |
+	| **Condition Affecting Outcome** | Missing required fields, invalid category, or database errors. |
+	| **Use Case Description**      | The system validates input data, generates a URL slug from the title, associates the post with the author and category, and stores it in the database. |
+	| **Use Case Associations**     | UC-015: View Blog Posts, UC-016: Update Blog Post. |
+	| **Traceability To**           | SRS-002. |
+	| **Input Summary**             | Title, content, author ID (ccn_author), category ID (ccn_category). |
+	| **Output Summary**            | Created post with generated slug and timestamp. |
+	| **Usability Index**           | High, core functionality for content creators. |
+	| **Use Case Notes**            | Slug is automatically generated from title. Duplicate slugs are handled with numeric suffixes. |
+
+	</div>
+	</TabItem>
+
+{/* --- UC-002: View Blog Posts --- */}
+<TabItem label="UC-015">
+	<div className="use-case-content">
+
+	**Priority**: High  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | View Blog Posts                           |
+	| **Subject Area**              | Content Display       |
+	| **Business Event**            | This use case applies when users want to view published blog posts.                  |
+	| **Actors**                    | General user (no authentication required), **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers retrieving and displaying blog posts in various formats (single, random, featured, table). |
+	| **Preconditions**             | At least one post must exist in the database. |
+	| **Termination Outcome**       | Posts are displayed with author name, category, and metadata. |
+	| **Condition Affecting Outcome** | No posts available or database errors. |
+	| **Use Case Description**      | The system retrieves posts from the database, joins with user and category tables to enrich data, and returns formatted results. |
+	| **Use Case Associations**     | UC-014: Create Blog Post, UC-017: View Featured Post. |
+	| **Traceability To**           | SRS-002. |
+	| **Input Summary**             | Post ID (for single post) or query parameters (for lists). |
+	| **Output Summary**            | Post data with author full name, category name, slug, and published timestamp. |
+	| **Usability Index**           | Critical, primary user-facing functionality. |
+	| **Use Case Notes**            | Supports multiple views: single post, random 3 posts, all posts table, featured post. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-003: Update Blog Post --- */}
+<TabItem label="UC-016">
+	<div className="use-case-content">
+
+	**Priority**: Medium  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Update Blog Post                           |
+	| **Subject Area**              | Content Management       |
+	| **Business Event**            | This use case applies when an authorized user wants to modify an existing post.                  |
+	| **Actors**                    | Post owner or user with posts.update permission, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers editing post content, title, category, or other metadata. |
+	| **Preconditions**             | Post must exist, user must have ownership or `posts.update` permission. |
+	| **Termination Outcome**       | Post is updated with new content and regenerated slug if title changed. |
+	| **Condition Affecting Outcome** | Post not found, insufficient permissions, or validation errors. |
+	| **Use Case Description**      | The system verifies permissions, validates new data, updates the post record, and regenerates the slug if the title was modified. |
+	| **Use Case Associations**     | UC-014: Create Blog Post, UC-018: Delete Blog Post. |
+	| **Traceability To**           | SRS-002. |
+	| **Input Summary**             | Post ID, updated fields (title, content, category). |
+	| **Output Summary**            | Updated post data. |
+	| **Usability Index**           | Medium, important for content maintenance. |
+	| **Use Case Notes**            | Uses `@require_ownership_or_permission` decorator for authorization. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-004: View Featured Post --- */}
+<TabItem label="UC-017">
+	<div className="use-case-content">
+
+	**Priority**: Medium  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | View Featured Post                           |
+	| **Subject Area**              | Content Display       |
+	| **Business Event**            | This use case applies when users visit the homepage or blog landing page.                  |
+	| **Actors**                    | General user, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers displaying the most recent post as a featured article. |
+	| **Preconditions**             | At least one post must exist. |
+	| **Termination Outcome**       | The most recent post is displayed with full details. |
+	| **Condition Affecting Outcome** | No posts available. |
+	| **Use Case Description**      | The system queries for the latest post by descending order of post ID, enriches it with author and category data, and returns it. |
+	| **Use Case Associations**     | UC-015: View Blog Posts. |
+	| **Traceability To**           | SRS-002. |
+	| **Input Summary**             | None. |
+	| **Output Summary**            | Featured post with title, content, author, category, slug, and published date. |
+	| **Usability Index**           | Medium, enhances user engagement. |
+	| **Use Case Notes**            | Returns 404 if no posts exist. Featured post is always the most recent. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-005: Delete Blog Post --- */}
+<TabItem label="UC-018">
+	<div className="use-case-content">
+
+	**Priority**: Medium  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Delete Blog Post                           |
+	| **Subject Area**              | Content Management       |
+	| **Business Event**            | This use case applies when an authorized user wants to remove a post.                  |
+	| **Actors**                    | Post owner or user with posts.delete permission, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers permanent deletion of a blog post. |
+	| **Preconditions**             | Post must exist, user must have ownership or `posts.delete` permission. |
+	| **Termination Outcome**       | Post is permanently removed from the database. |
+	| **Condition Affecting Outcome** | Post not found, insufficient permissions, or database constraints (e.g., comments). |
+	| **Use Case Description**      | The system verifies permissions, checks for dependencies, and deletes the post record. |
+	| **Use Case Associations**     | UC-014: Create Blog Post, UC-016: Update Blog Post. |
+	| **Traceability To**           | SRS-002. |
+	| **Input Summary**             | Post ID. |
+	| **Output Summary**            | Confirmation message. |
+	| **Usability Index**           | Medium, necessary for content cleanup. |
+	| **Use Case Notes**            | Consider implementing soft delete for audit purposes. |
+
+	</div>
+</TabItem>
+
+{/* --- UC-006: Manage Posts Table --- */}
+<TabItem label="UC-019">
+	<div className="use-case-content">
+
+	**Priority**: Medium  
+	**Description**:  
+
+	| **Field**                     | **Detail**                                                                 |
+	|-------------------------------|---------------------------------------------------------------------------|
+	| **Use Case Name**             | Manage Posts Table                           |
+	| **Subject Area**              | Administrative Interface       |
+	| **Business Event**            | This use case applies when administrators need to view and manage all posts.                  |
+	| **Actors**                    | User with posts.read permission, **ruizdev7 Platform**.    |
+	| **Use Case Overview**         | This use case covers retrieving all posts in a table format for administration. |
+	| **Preconditions**             | User must have `posts.read` permission. |
+	| **Termination Outcome**       | All posts are displayed in descending order with full details. |
+	| **Condition Affecting Outcome** | Insufficient permissions or database errors. |
+	| **Use Case Description**      | The system retrieves all posts ordered by ID descending, joins with users and categories, and returns a comprehensive list. |
+	| **Use Case Associations**     | UC-014: Create Blog Post, UC-016: Update Blog Post, UC-018: Delete Blog Post. |
+	| **Traceability To**           | SRS-002. |
+	| **Input Summary**             | None. |
+	| **Output Summary**            | Array of posts with all metadata. |
+	| **Usability Index**           | High for administrators. |
+	| **Use Case Notes**            | Used by frontend admin panel. Consider pagination for large datasets. |
+
+	</div>
+</TabItem>
+</Tabs>
+
+## 3. Acceptance Criteria
+
+| Criterion           | Description / Acceptance Condition |
+|---------------------|----------------------------------|
+| **Post Creation** | Authorized users can create posts with auto-generated slugs. |
+| **Post Viewing** | Anyone can view published posts without authentication. |
+| **Post Editing** | Post owners or users with permissions can update posts. |
+| **Post Deletion** | Authorized users can delete posts. |
+| **Featured Post** | Homepage displays the most recent post prominently. |
+| **Random Posts** | System can return 3 random posts for content discovery. |
+| **Category Association** | All posts must be associated with a valid category. |
+| **Author Attribution** | All posts display author full name. |
+| **Slug Generation** | Slugs are automatically generated from titles and are URL-safe. |
+| **Permission Enforcement** | Only authorized users can create, update, or delete posts. |
+
+## 4. Non-Functional Requirements
+
+| Category     | Requirement |
+|-------------|-------------|
+| **Performance** | Post retrieval in under 200ms for single posts, under 500ms for lists. |
+| **Security**    | Authorization checks on all write operations. SQL injection prevention through ORM. |
+| **Availability** | 99.95% uptime for blog content. |
+| **Scalability**   | Support for 10,000+ posts without performance degradation. |
+| **SEO** | All posts accessible via SEO-friendly slug URLs. |
+| **Data Integrity** | Foreign key constraints for author and category relationships. |
+
+## 5. Technical Specifications
+
+### 5.1 Database Schema
+
+**Table: tbl_posts**
+- `ccn_post` (Primary Key, Auto-increment)
+- `title` (String, Required)
+- `content` (Text, Required)
+- `slug` (String, Unique, Auto-generated)
+- `ccn_author` (Foreign Key -> tbl_users)
+- `ccn_category` (Foreign Key -> tbl_categories)
+- `published_at` (Timestamp, Auto-generated)
+- `updated_at` (Timestamp, Auto-updated)
+
+**Table: tbl_categories**
+- `ccn_category` (Primary Key)
+- `category` (String, Unique)
+- `description` (Text)
+
+### 5.2 API Endpoints
+
+| Method | Endpoint | Description | Auth Required | Permission |
+|--------|----------|-------------|---------------|------------|
+| POST | `/api/v1/posts` | Create post | Yes | posts.create |
+| GET | `/posts/{id}` | Get single post | No | None |
+| GET | `/api/v1/posts` | Get 3 random posts | No | None |
+| GET | `/api/v1/posts-table` | Get all posts (admin) | Yes | posts.read |
+| GET | `/api/v1/posts/featured_post` | Get featured post | No | None |
+| PUT | `/api/v1/posts/{id}` | Update post | Yes | posts.update |
+| DELETE | `/api/v1/posts/{id}` | Delete post | Yes (optional) | None |
+
+### 5.3 Data Flow
+
+1. **Post Creation:**
+   - Validate input (title, content, author, category)
+   - Generate slug from title
+   - Store in database with timestamp
+   - Return created post
+
+2. **Post Retrieval:**
+   - Query database
+   - Join with users table (for author name)
+   - Join with categories table (for category name)
+   - Format and return data
+
+3. **Slug Generation Algorithm:**
+   - Convert title to lowercase
+   - Replace spaces with hyphens
+   - Remove special characters
+   - Handle duplicates with numeric suffix
+
+### 5.4 Schema Structure
+
+**SchemaPost (Marshmallow):**
+- Serializes Post model
+- Excludes internal fields
+- Includes nested author and category data
+
+## Additional Information
+
+| Field        | Detail |
+|-------------|--------|
+| **Stakeholders** | ruizdev7 Team, Content Creators |
+| **Attachments** | [API_DOCUMENTATION.md] |
+| **Tech Stack** | Flask, SQLAlchemy, Marshmallow |
+| **Frontend Integration** | React components: FeaturedPost, PostList, PostTable |
+
+## Final Approval
+
+| Name/Title            | Signature     | Date       |
+|----------------------|--------------|-----------|
+| **Client Representative** | ruizdev7  | 17-November-24 |
+| **Company Representative** | ruizdev7  | 17-November-24 |
+

@@ -1,0 +1,1099 @@
+---
+title: "Implementing Enterprise-Grade Audit Logs for Compliance and Security"
+date: 2024-10-08
+authors:
+  name: Jose G Ruiz
+  title: Software Engineer | DevOps Engineer
+  picture: https://avatars.githubusercontent.com/u/62305538?v=4&size=64
+  url: https://www.linkedin.com/in/Ruizdev7
+excerpt: "Build a comprehensive audit logging system for compliance (SOC 2, GDPR, PCI-DSS). Learn to track authentication events, resource modifications, security violations, implement immutable logs, create searchable audit trails, build admin dashboards, handle before/after state tracking, optimize query performance with indexes, and export compliance reports. Essential for enterprise applications and security-conscious startups."
+draft: false
+tags:
+  - Backend Development
+  - Security
+  - Compliance
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Introduction
+
+"Who changed this data?" "When was this user last logged in?" "Can you prove we deleted that record?" These are questions every enterprise application must answer. Audit logs are not just about compliance—they're about accountability, security, and debugging.
+
+In this article, I'll show you how to implement a comprehensive audit logging system that tracks every critical action in your application while maintaining performance and meeting compliance requirements.
+
+<Aside type="tip">
+**What you'll learn:**
+- Design immutable audit log schema
+- Track authentication events (login, logout, failures)
+- Log resource CRUD operations with before/after values
+- Detect and log security violations
+- Build searchable audit trail interface
+- Implement log retention and archiving
+- Optimize audit queries with indexes
+- Meet SOC 2, GDPR, PCI-DSS requirements
+</Aside>
+
+## Why Audit Logging Matters
+
+Audit logs serve multiple critical purposes:
+
+1. **Security**: Detect and investigate security incidents
+2. **Compliance**: Meet regulatory requirements (GDPR, SOC 2, HIPAA, PCI-DSS)
+3. **Debugging**: Trace the history of data changes
+4. **Accountability**: Know who did what and when
+5. **Forensics**: Reconstruct events during incident response
+6. **Non-repudiation**: Prevent users from denying actions
+
+## Database Schema: Immutable Audit Trail
+
+Design a log table that captures all relevant context:
+
+```python
+# backend/portfolio_app/models/tbl_audit_logs.py
+from datetime import datetime
+from portfolio_app import db
+from typing import Optional, Dict, Any
+
+class AuditLog(db.Model):
+    __tablename__ = "tbl_audit_logs"
+    
+    ccn_audit_log = db.Column(db.Integer, primary_key=True)
+    
+    # Who performed the action
+    ccn_user = db.Column(
+        db.Integer, 
+        db.ForeignKey("tbl_users.ccn_user"), 
+        nullable=True  # NULL for unauthenticated events
+    )
+    
+    # What happened
+    event_type = db.Column(db.String(50), nullable=False, index=True)
+    # login, logout, create, update, delete, permission_denied, etc.
+    
+    # What resource was affected
+    resource = db.Column(db.String(50), nullable=False, index=True)
+    # users, posts, pumps, categories, auth, etc.
+    
+    # What action was taken
+    action = db.Column(db.String(20), nullable=False)
+    # create, read, update, delete
+    
+    # Human-readable description
+    description = db.Column(db.Text, nullable=False)
+    
+    # Network context
+    ip_address = db.Column(db.String(45))  # IPv4 or IPv6
+    user_agent = db.Column(db.String(500))
+    
+    # Additional context (JSON for flexibility)
+    additional_data = db.Column(db.Text)  # Store JSON string
+    
+    # When it happened (immutable)
+    created_at = db.Column(
+        db.DateTime, 
+        nullable=False, 
+        default=datetime.now,
+        index=True
+    )
+    
+    # Relationships
+    user = db.relationship("User", backref="audit_logs")
+    
+    def __init__(
+        self,
+        ccn_user: Optional[int] = None,
+        event_type: str = "",
+        resource: str = "",
+        action: str = "",
+        description: str = "",
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        additional_data: Optional[str] = None
+    ):
+        self.ccn_user = ccn_user
+        self.event_type = event_type
+        self.resource = resource
+        self.action = action
+        self.description = description
+        self.ip_address = ip_address
+        self.user_agent = user_agent
+        self.additional_data = additional_data
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "ccn_audit_log": self.ccn_audit_log,
+            "ccn_user": self.ccn_user,
+            "event_type": self.event_type,
+            "resource": self.resource,
+            "action": self.action,
+            "description": self.description,
+            "ip_address": self.ip_address,
+            "user_agent": self.user_agent,
+            "additional_data": self.additional_data,
+            "created_at": self.created_at.isoformat()
+        }
+    
+    def __repr__(self):
+        return f"AuditLog(user={self.ccn_user}, event='{self.event_type}', resource='{self.resource}')"
+```
+
+### Database Indexes for Performance
+
+```python
+# Add composite indexes for common query patterns
+__table_args__ = (
+    db.Index('idx_user_created', 'ccn_user', 'created_at'),
+    db.Index('idx_resource_action', 'resource', 'action', 'created_at'),
+    db.Index('idx_event_type_created', 'event_type', 'created_at'),
+)
+```
+
+<Aside type="note">
+**Immutability**: Audit logs should NEVER be updated or deleted through normal operations. Consider using database triggers or append-only storage to enforce this at the database level.
+</Aside>
+
+## Audit Service Layer
+
+Create a service for consistent logging:
+
+```python
+# backend/portfolio_app/services/audit_log_service.py
+from typing import Optional
+from flask import request
+from portfolio_app.models.tbl_audit_logs import AuditLog
+from portfolio_app import db
+
+class AuditLogService:
+    
+    @staticmethod
+    def create_log(
+        ccn_user: Optional[int],
+        event_type: str,
+        resource: str,
+        action: str,
+        description: str,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        additional_data: Optional[str] = None
+    ) -> AuditLog:
+        """Create an audit log entry"""
+        # Auto-capture request context if available
+        if ip_address is None:
+            ip_address = request.remote_addr if request else None
+        if user_agent is None:
+            user_agent = request.headers.get("User-Agent") if request else None
+        
+        log = AuditLog(
+            ccn_user=ccn_user,
+            event_type=event_type,
+            resource=resource,
+            action=action,
+            description=description,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            additional_data=additional_data
+        )
+        
+        db.session.add(log)
+        db.session.commit()
+        return log
+    
+    @staticmethod
+    def log_login(ccn_user: int, email: str, ip_address: Optional[str] = None) -> AuditLog:
+        """Log successful login"""
+        return AuditLogService.create_log(
+            ccn_user=ccn_user,
+            event_type="login",
+            resource="auth",
+            action="read",
+            description=f"User {email} logged in successfully",
+            ip_address=ip_address
+        )
+    
+    @staticmethod
+    def log_logout(ccn_user: int, email: str) -> AuditLog:
+        """Log user logout"""
+        return AuditLogService.create_log(
+            ccn_user=ccn_user,
+            event_type="logout",
+            resource="auth",
+            action="read",
+            description=f"User {email} logged out"
+        )
+    
+    @staticmethod
+    def log_failed_login(email: str, ip_address: Optional[str] = None) -> AuditLog:
+        """Log failed login attempt"""
+        return AuditLogService.create_log(
+            ccn_user=None,  # No user ID for failed login
+            event_type="login_failed",
+            resource="auth",
+            action="read",
+            description=f"Failed login attempt for email: {email}",
+            ip_address=ip_address
+        )
+    
+    @staticmethod
+    def log_create(ccn_user: int, resource: str, description: str) -> AuditLog:
+        """Log resource creation"""
+        return AuditLogService.create_log(
+            ccn_user=ccn_user,
+            event_type="create",
+            resource=resource,
+            action="create",
+            description=description
+        )
+    
+    @staticmethod
+    def log_update(
+        ccn_user: int, 
+        resource: str, 
+        description: str,
+        changes: Optional[Dict] = None
+    ) -> AuditLog:
+        """Log resource update with before/after values"""
+        import json
+        additional_data = json.dumps(changes) if changes else None
+        
+        return AuditLogService.create_log(
+            ccn_user=ccn_user,
+            event_type="update",
+            resource=resource,
+            action="update",
+            description=description,
+            additional_data=additional_data
+        )
+    
+    @staticmethod
+    def log_delete(ccn_user: int, resource: str, description: str) -> AuditLog:
+        """Log resource deletion"""
+        return AuditLogService.create_log(
+            ccn_user=ccn_user,
+            event_type="delete",
+            resource=resource,
+            action="delete",
+            description=description
+        )
+    
+    @staticmethod
+    def log_permission_denied(
+        ccn_user: Optional[int],
+        resource: str,
+        action: str,
+        reason: str
+    ) -> AuditLog:
+        """Log permission denial (security event)"""
+        description = f"Permission denied for {resource}.{action}: {reason}"
+        return AuditLogService.create_log(
+            ccn_user=ccn_user,
+            event_type="permission_denied",
+            resource=resource,
+            action=action,
+            description=description
+        )
+```
+
+## Integration with Authentication
+
+Log authentication events automatically:
+
+```python
+# backend/portfolio_app/resources/resource_authorization.py
+from flask import Blueprint, jsonify, request
+from flask_jwt_extended import create_access_token, create_refresh_token
+from portfolio_app.models.tbl_users import User
+from portfolio_app.services.audit_log_service import AuditLogService
+
+@blueprint_auth.route("/api/v1/token", methods=["POST"])
+def login():
+    """Login endpoint with audit logging"""
+    data = request.get_json()
+    email = data.get("email")
+    password = data.get("password")
+    ip_address = request.remote_addr
+    
+    user = User.query.filter_by(email=email).first()
+    
+    # Failed login
+    if not user or not user.check_password(password):
+        AuditLogService.log_failed_login(email, ip_address)
+        return {"error": "Invalid credentials"}, 401
+    
+    # Successful login
+    access_token = create_access_token(identity=email)
+    refresh_token = create_refresh_token(identity=email)
+    
+    # Update last login
+    user.update_last_login()
+    
+    # Log successful login
+    AuditLogService.log_login(user.ccn_user, email, ip_address)
+    
+    return {
+        "current_user": {
+            # ... user data ...
+            "token": access_token,
+            "refresh_token": refresh_token
+        }
+    }, 200
+
+@blueprint_auth.route("/api/v1/logout", methods=["DELETE"])
+@jwt_required()
+def logout():
+    """Logout endpoint with audit logging"""
+    from flask_jwt_extended import get_jwt_identity
+    
+    email = get_jwt_identity()
+    user = User.query.filter_by(email=email).first()
+    
+    if user:
+        AuditLogService.log_logout(user.ccn_user, email)
+    
+    # Add token to blocklist
+    # ... token revocation logic ...
+    
+    return {"message": "Logged out successfully"}, 200
+```
+
+## Integration with CRUD Operations
+
+Log resource modifications:
+
+```python
+# backend/portfolio_app/resources/resource_pumps.py
+from portfolio_app.services.audit_log_service import AuditLogService
+import json
+
+@blueprint_api_pump.route("/api/v1/pumps", methods=["POST"])
+@jwt_required()
+@require_permission("pumps", "create")
+def create_pump():
+    """Create pump with audit logging"""
+    # ... pump creation logic ...
+    
+    # Log creation
+    AuditLogService.log_create(
+        ccn_user=current_user.ccn_user,
+        resource="pumps",
+        description=f"Created pump: {new_pump.model} (SN: {new_pump.serial_number})"
+    )
+    
+    return {"pump": new_pump.to_dict()}, 201
+
+@blueprint_api_pump.route("/api/v1/pumps/<int:pump_id>", methods=["PUT"])
+@jwt_required()
+@require_ownership_or_permission("pumps", "update")
+def update_pump(pump_id):
+    """Update pump with before/after tracking"""
+    pump = Pump.query.get_or_404(pump_id)
+    
+    # Capture before state
+    old_values = {
+        "model": pump.model,
+        "location": pump.location,
+        "status": pump.status,
+        "efficiency": pump.efficiency
+    }
+    
+    # Update pump
+    request_data = request.get_json()
+    if "model" in request_data:
+        pump.model = request_data["model"]
+    if "location" in request_data:
+        pump.location = request_data["location"]
+    # ... other updates ...
+    
+    db.session.commit()
+    
+    # Capture after state
+    new_values = {
+        "model": pump.model,
+        "location": pump.location,
+        "status": pump.status,
+        "efficiency": pump.efficiency
+    }
+    
+    # Log update with changes
+    changes = {
+        "before": old_values,
+        "after": new_values,
+        "changed_fields": [
+            k for k in old_values.keys() 
+            if old_values[k] != new_values[k]
+        ]
+    }
+    
+    AuditLogService.log_update(
+        ccn_user=current_user.ccn_user,
+        resource="pumps",
+        description=f"Updated pump {pump_id}: {', '.join(changes['changed_fields'])}",
+        changes=changes
+    )
+    
+    return {"pump": pump.to_dict()}, 200
+
+@blueprint_api_pump.route("/api/v1/pumps/<int:pump_id>", methods=["DELETE"])
+@jwt_required()
+@require_permission("pumps", "delete")
+def delete_pump(pump_id):
+    """Delete pump with audit logging"""
+    pump = Pump.query.get_or_404(pump_id)
+    
+    # Capture pump data before deletion
+    pump_data = pump.to_dict()
+    
+    db.session.delete(pump)
+    db.session.commit()
+    
+    # Log deletion with original data
+    AuditLogService.log_delete(
+        ccn_user=current_user.ccn_user,
+        resource="pumps",
+        description=f"Deleted pump: {pump_data['model']} (SN: {pump_data['serial_number']})"
+    )
+    
+    return {"message": "Pump deleted successfully"}, 200
+```
+
+<Aside type="caution">
+**Critical Practice**: Always log BEFORE committing destructive operations (like DELETE). Once data is gone, you can't reconstruct it without the audit log.
+</Aside>
+
+## Logging Security Events
+
+Track permission denials and suspicious activity:
+
+```python
+# backend/portfolio_app/decorators/auth_decorators.py (modified)
+from portfolio_app.services.audit_log_service import AuditLogService
+
+def require_permission(resource: str, action: str):
+    """Decorator with audit logging for denials"""
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            verify_jwt_in_request()
+            current_user_email = get_jwt_identity()
+            user = User.query.filter_by(email=current_user_email).first()
+            
+            if not user:
+                return jsonify({"error": "User not found"}), 404
+            
+            if not user.has_permission(resource, action):
+                # Log permission denial
+                AuditLogService.log_permission_denied(
+                    ccn_user=user.ccn_user,
+                    resource=resource,
+                    action=action,
+                    reason=f"User lacks {resource}_{action} permission"
+                )
+                
+                return jsonify({
+                    "error": "Permission denied",
+                    "required_permission": f"{resource}_{action}"
+                }), 403
+            
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+```
+
+## API Endpoints for Audit Log Retrieval
+
+```python
+# backend/portfolio_app/resources/resource_audit_logs.py
+from flask import Blueprint, jsonify, request
+from flask_jwt_extended import jwt_required
+from portfolio_app.models.tbl_audit_logs import AuditLog
+from portfolio_app.decorators.auth_decorators import require_role
+from datetime import datetime
+
+blueprint_api_audit = Blueprint("api_audit", __name__)
+
+@blueprint_api_audit.route("/api/v1/audit-logs", methods=["GET"])
+@jwt_required()
+@require_role("admin")
+def get_audit_logs():
+    """Get audit logs with filtering and pagination"""
+    # Query parameters
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    user_id = request.args.get("user_id", type=int)
+    event_type = request.args.get("event_type")
+    resource = request.args.get("resource")
+    date_from = request.args.get("date_from")
+    date_to = request.args.get("date_to")
+    
+    # Build query
+    query = AuditLog.query
+    
+    # Apply filters
+    if user_id:
+        query = query.filter_by(ccn_user=user_id)
+    if event_type:
+        query = query.filter_by(event_type=event_type)
+    if resource:
+        query = query.filter_by(resource=resource)
+    if date_from:
+        query = query.filter(AuditLog.created_at >= datetime.fromisoformat(date_from))
+    if date_to:
+        query = query.filter(AuditLog.created_at <= datetime.fromisoformat(date_to))
+    
+    # Paginate
+    pagination = query.order_by(
+        AuditLog.created_at.desc()
+    ).paginate(page=page, per_page=per_page, error_out=False)
+    
+    return {
+        "logs": [log.to_dict() for log in pagination.items],
+        "pagination": {
+            "page": page,
+            "per_page": per_page,
+            "total": pagination.total,
+            "pages": pagination.pages
+        }
+    }, 200
+
+@blueprint_api_audit.route("/api/v1/audit-logs/stats", methods=["GET"])
+@jwt_required()
+@require_role("admin")
+def get_audit_stats():
+    """Get audit log statistics"""
+    from sqlalchemy import func
+    
+    # Event type distribution
+    event_distribution = db.session.query(
+        AuditLog.event_type,
+        func.count(AuditLog.ccn_audit_log).label('count')
+    ).group_by(AuditLog.event_type).all()
+    
+    # Resource distribution
+    resource_distribution = db.session.query(
+        AuditLog.resource,
+        func.count(AuditLog.ccn_audit_log).label('count')
+    ).group_by(AuditLog.resource).all()
+    
+    # Most active users
+    top_users = db.session.query(
+        AuditLog.ccn_user,
+        func.count(AuditLog.ccn_audit_log).label('action_count')
+    ).filter(
+        AuditLog.ccn_user.isnot(None)
+    ).group_by(
+        AuditLog.ccn_user
+    ).order_by(
+        func.count(AuditLog.ccn_audit_log).desc()
+    ).limit(10).all()
+    
+    return {
+        "event_distribution": [
+            {"event_type": et, "count": count} 
+            for et, count in event_distribution
+        ],
+        "resource_distribution": [
+            {"resource": r, "count": count} 
+            for r, count in resource_distribution
+        ],
+        "top_users": [
+            {"user_id": uid, "action_count": count} 
+            for uid, count in top_users
+        ],
+        "total_logs": AuditLog.query.count()
+    }, 200
+```
+
+## Frontend: Audit Log Viewer
+
+Build an admin interface for viewing logs:
+
+```jsx
+// frontend/src/components/auth/EventsLogs.jsx
+import { useState, useEffect } from 'react';
+import { toast } from 'react-toastify';
+
+function EventsLogs() {
+  const [logs, setLogs] = useState([]);
+  const [filters, setFilters] = useState({
+    event_type: '',
+    resource: '',
+    date_from: '',
+    date_to: ''
+  });
+  const [pagination, setPagination] = useState({});
+  const [currentPage, setCurrentPage] = useState(1);
+  
+  useEffect(() => {
+    fetchLogs();
+  }, [currentPage, filters]);
+  
+  const fetchLogs = async () => {
+    try {
+      const params = new URLSearchParams({
+        page: currentPage,
+        per_page: 50,
+        ...Object.fromEntries(Object.entries(filters).filter(([_, v]) => v))
+      });
+      
+      const response = await fetch(`/api/v1/audit-logs?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      });
+      
+      const data = await response.json();
+      setLogs(data.logs);
+      setPagination(data.pagination);
+    } catch (error) {
+      toast.error('Error fetching audit logs');
+    }
+  };
+  
+  const getEventIcon = (eventType) => {
+    const icons = {
+      login: '🔐',
+      logout: '🚪',
+      login_failed: '❌',
+      create: '➕',
+      update: '✏️',
+      delete: '🗑️',
+      permission_denied: '🚫'
+    };
+    return icons[eventType] || '📝';
+  };
+  
+  const getEventColor = (eventType) => {
+    const colors = {
+      login: 'text-green-600',
+      logout: 'text-blue-600',
+      login_failed: 'text-red-600',
+      create: 'text-green-600',
+      update: 'text-yellow-600',
+      delete: 'text-red-600',
+      permission_denied: 'text-red-600'
+    };
+    return colors[eventType] || 'text-gray-600';
+  };
+  
+  return (
+    <div className="p-6">
+      <h1 className="text-3xl font-bold mb-6">Audit Logs</h1>
+      
+      {/* Filters */}
+      <div className="bg-white p-4 rounded-lg shadow mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Event Type</label>
+            <select
+              value={filters.event_type}
+              onChange={(e) => setFilters({...filters, event_type: e.target.value})}
+              className="w-full p-2 border rounded"
+            >
+              <option value="">All Events</option>
+              <option value="login">Login</option>
+              <option value="logout">Logout</option>
+              <option value="login_failed">Failed Login</option>
+              <option value="create">Create</option>
+              <option value="update">Update</option>
+              <option value="delete">Delete</option>
+              <option value="permission_denied">Permission Denied</option>
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-1">Resource</label>
+            <select
+              value={filters.resource}
+              onChange={(e) => setFilters({...filters, resource: e.target.value})}
+              className="w-full p-2 border rounded"
+            >
+              <option value="">All Resources</option>
+              <option value="auth">Authentication</option>
+              <option value="users">Users</option>
+              <option value="posts">Posts</option>
+              <option value="pumps">Pumps</option>
+              <option value="roles">Roles</option>
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-1">From Date</label>
+            <input
+              type="date"
+              value={filters.date_from}
+              onChange={(e) => setFilters({...filters, date_from: e.target.value})}
+              className="w-full p-2 border rounded"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-1">To Date</label>
+            <input
+              type="date"
+              value={filters.date_to}
+              onChange={(e) => setFilters({...filters, date_to: e.target.value})}
+              className="w-full p-2 border rounded"
+            />
+          </div>
+        </div>
+        
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={() => setFilters({ event_type: '', resource: '', date_from: '', date_to: '' })}
+            className="text-sm text-blue-600 hover:text-blue-800"
+          >
+            Clear Filters
+          </button>
+        </div>
+      </div>
+      
+      {/* Logs Timeline */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-4 border-b">
+          <h2 className="text-xl font-semibold">
+            Audit Trail ({pagination.total || 0} events)
+          </h2>
+        </div>
+        
+        <div className="divide-y">
+          {logs.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              No audit logs found
+            </div>
+          ) : (
+            logs.map(log => (
+              <AuditLogEntry key={log.ccn_audit_log} log={log} />
+            ))
+          )}
+        </div>
+        
+        {/* Pagination */}
+        {pagination.pages > 1 && (
+          <div className="p-4 border-t flex justify-between items-center">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={!pagination.has_prev}
+              className="px-4 py-2 border rounded disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-gray-600">
+              Page {pagination.page} of {pagination.pages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => p + 1)}
+              disabled={!pagination.has_next}
+              className="px-4 py-2 border rounded disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AuditLogEntry({ log }) {
+  const [expanded, setExpanded] = useState(false);
+  const eventIcon = getEventIcon(log.event_type);
+  const eventColor = getEventColor(log.event_type);
+  
+  return (
+    <div className="p-4 hover:bg-gray-50">
+      <div className="flex items-start justify-between">
+        <div className="flex items-start space-x-3 flex-1">
+          <span className={`text-2xl ${eventColor}`}>{eventIcon}</span>
+          
+          <div className="flex-1">
+            <div className="flex items-center space-x-2">
+              <span className="font-medium">{log.event_type.replace('_', ' ').toUpperCase()}</span>
+              <span className="text-sm text-gray-500">on</span>
+              <span className="text-sm bg-gray-100 px-2 py-1 rounded">{log.resource}</span>
+            </div>
+            
+            <p className="text-gray-700 mt-1">{log.description}</p>
+            
+            <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+              <span>🕐 {new Date(log.created_at).toLocaleString()}</span>
+              {log.ip_address && <span>🌐 {log.ip_address}</span>}
+              {log.ccn_user && <span>👤 User ID: {log.ccn_user}</span>}
+            </div>
+            
+            {/* Additional Data */}
+            {log.additional_data && (
+              <button
+                onClick={() => setExpanded(!expanded)}
+                className="text-sm text-blue-600 hover:text-blue-800 mt-2"
+              >
+                {expanded ? 'Hide' : 'Show'} Details
+              </button>
+            )}
+            
+            {expanded && log.additional_data && (
+              <div className="mt-3 bg-gray-50 p-3 rounded">
+                <pre className="text-xs overflow-x-auto">
+                  {JSON.stringify(JSON.parse(log.additional_data), null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default EventsLogs;
+```
+
+## Security Dashboard
+
+Create a security-focused view of audit logs:
+
+```jsx
+// frontend/src/components/auth/Security.jsx
+import { useState, useEffect } from 'react';
+
+function Security() {
+  const [stats, setStats] = useState(null);
+  const [recentSecurityEvents, setRecentSecurityEvents] = useState([]);
+  
+  useEffect(() => {
+    fetchSecurityData();
+  }, []);
+  
+  const fetchSecurityData = async () => {
+    // Fetch statistics
+    const statsResponse = await fetch('/api/v1/audit-logs/stats', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    const statsData = await statsResponse.json();
+    setStats(statsData);
+    
+    // Fetch recent security events
+    const eventsResponse = await fetch('/api/v1/audit-logs?event_type=login_failed&per_page=10', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    const eventsData = await eventsResponse.json();
+    setRecentSecurityEvents(eventsData.logs);
+  };
+  
+  if (!stats) return <div>Loading...</div>;
+  
+  return (
+    <div className="p-6">
+      <h1 className="text-3xl font-bold mb-6">Security Dashboard</h1>
+      
+      {/* Security Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <MetricCard
+          title="Total Events"
+          value={stats.total_logs}
+          icon="📊"
+          color="blue"
+        />
+        <MetricCard
+          title="Failed Logins"
+          value={
+            stats.event_distribution.find(e => e.event_type === 'login_failed')?.count || 0
+          }
+          icon="❌"
+          color="red"
+        />
+        <MetricCard
+          title="Permission Denials"
+          value={
+            stats.event_distribution.find(e => e.event_type === 'permission_denied')?.count || 0
+          }
+          icon="🚫"
+          color="orange"
+        />
+        <MetricCard
+          title="Active Users"
+          value={stats.top_users.length}
+          icon="👥"
+          color="green"
+        />
+      </div>
+      
+      {/* Recent Failed Login Attempts */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-xl font-semibold mb-4">Recent Failed Login Attempts</h2>
+        {recentSecurityEvents.length === 0 ? (
+          <p className="text-gray-500">No failed login attempts</p>
+        ) : (
+          <div className="space-y-3">
+            {recentSecurityEvents.map(event => (
+              <div key={event.ccn_audit_log} className="border-l-4 border-red-500 pl-4 py-2">
+                <div className="font-medium text-red-600">{event.description}</div>
+                <div className="text-sm text-gray-600">
+                  {new Date(event.created_at).toLocaleString()} • IP: {event.ip_address}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ title, value, icon, color }) {
+  const colors = {
+    blue: 'bg-blue-100 text-blue-800',
+    red: 'bg-red-100 text-red-800',
+    orange: 'bg-orange-100 text-orange-800',
+    green: 'bg-green-100 text-green-800'
+  };
+  
+  return (
+    <div className={`rounded-lg p-6 ${colors[color]}`}>
+      <div className="text-4xl mb-2">{icon}</div>
+      <div className="text-sm font-medium">{title}</div>
+      <div className="text-3xl font-bold">{value}</div>
+    </div>
+  );
+}
+
+export default Security;
+```
+
+## Log Retention and Archiving
+
+Implement automatic log archiving:
+
+```python
+# backend/portfolio_app/commands.py
+from flask.cli import with_appcontext
+import click
+from datetime import datetime, timedelta
+
+@click.command('archive-old-logs')
+@click.option('--days', default=365, help='Archive logs older than N days')
+@with_appcontext
+def archive_old_logs(days):
+    """Archive audit logs older than specified days"""
+    cutoff_date = datetime.now() - timedelta(days=days)
+    
+    old_logs = AuditLog.query.filter(
+        AuditLog.created_at < cutoff_date
+    ).all()
+    
+    if not old_logs:
+        click.echo("No logs to archive")
+        return
+    
+    # Export to file or archive database
+    import json
+    archive_data = [log.to_dict() for log in old_logs]
+    
+    filename = f"audit_logs_archive_{datetime.now().strftime('%Y%m%d')}.json"
+    with open(filename, 'w') as f:
+        json.dump(archive_data, f, indent=2)
+    
+    click.echo(f"Archived {len(old_logs)} logs to {filename}")
+    
+    # Optionally delete from main table (backup first!)
+    # for log in old_logs:
+    #     db.session.delete(log)
+    # db.session.commit()
+
+# Register command
+app.cli.add_command(archive_old_logs)
+```
+
+## Compliance Mapping
+
+### SOC 2 Type II Requirements
+
+```python
+# Audit logs must include:
+✅ Who (user_id)
+✅ What (event_type, action, description)
+✅ When (created_at)
+✅ Where (ip_address)
+✅ Result (implicit in event_type)
+
+# Additional requirements:
+✅ Immutable records
+✅ Secure storage with access controls
+✅ Regular review process
+✅ Retention policy (minimum 1 year)
+```
+
+### GDPR Compliance
+
+```python
+@blueprint_api_user.route("/api/v1/users/<int:user_id>/audit-trail", methods=["GET"])
+@jwt_required()
+def get_user_audit_trail(user_id):
+    """
+    Get user's audit trail (GDPR right to access)
+    Users can request all logs related to their account
+    """
+    current_user_email = get_jwt_identity()
+    current_user = User.query.filter_by(email=current_user_email).first()
+    
+    # Users can only view their own audit trail
+    if current_user.ccn_user != user_id and not current_user.has_role('admin'):
+        return {"error": "Permission denied"}, 403
+    
+    logs = AuditLog.query.filter_by(ccn_user=user_id)\
+                         .order_by(AuditLog.created_at.desc())\
+                         .all()
+    
+    return {
+        "audit_trail": [log.to_dict() for log in logs],
+        "total_events": len(logs)
+    }, 200
+```
+
+## Best Practices
+
+1. **Immutability**: Never allow log modification or deletion
+2. **Completeness**: Log all critical operations
+3. **Context**: Include IP, user agent, and timestamp
+4. **Performance**: Use async logging for high-traffic apps
+5. **Retention**: Define and enforce retention policies
+6. **Security**: Encrypt logs at rest
+7. **Backup**: Regular backups of audit data
+8. **Monitoring**: Alert on suspicious patterns
+9. **Privacy**: Never log passwords or sensitive PII
+10. **Testing**: Test logging doesn't break application flow
+
+<Aside type="tip">
+**Performance Tip**: For very high-traffic applications, consider writing audit logs asynchronously using a message queue (Celery + Redis) to avoid blocking request processing.
+</Aside>
+
+## Conclusion
+
+You now have an enterprise-grade audit logging system with:
+- ✅ Complete event tracking (auth, CRUD, security)
+- ✅ Immutable audit trail
+- ✅ Searchable log interface
+- ✅ Before/after state tracking
+- ✅ Security event monitoring
+- ✅ Compliance support (SOC 2, GDPR)
+- ✅ Performance-optimized queries
+- ✅ Admin dashboard with analytics
+
+This system supports:
+- Security incident investigation
+- Compliance audits
+- Data recovery operations
+- User behavior analysis
+- Performance monitoring
+
+The complete implementation is available in my [GitHub repository](https://github.com/ruizdev7/ruizdev7-portfolio).
+
+**Final Article:** Check out my personal journey from side projects to enterprise solutions!
+
+---
+
+*Interested in security best practices? Let's connect on [LinkedIn](https://www.linkedin.com/in/Ruizdev7)!*
+

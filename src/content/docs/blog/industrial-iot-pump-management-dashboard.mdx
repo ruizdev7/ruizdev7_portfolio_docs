@@ -1,0 +1,1339 @@
+---
+title: "Industrial IoT: Building a Pump Management Dashboard with Real-Time Analytics"
+date: 2024-09-12
+authors:
+  name: Jose G Ruiz
+  title: Software Engineer | DevOps Engineer
+  picture: https://avatars.githubusercontent.com/u/62305538?v=4&size=64
+  url: https://www.linkedin.com/in/Ruizdev7
+excerpt: "Build a complete industrial equipment management system with photo uploads, maintenance tracking, and advanced analytics. Learn to implement CRUD operations with Flask, handle multi-file uploads with drag-and-drop, create interactive dashboards using ECharts and AG Charts, build sortable tables with TanStack React Table, export data to Excel, and track equipment specifications. Perfect for IoT, industrial automation, or asset management applications."
+draft: false
+tags:
+  - Backend Development
+  - Frontend Development
+  - Data Analytics
+  - IoT
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight/components';
+
+## Introduction
+
+Managing industrial equipment requires tracking specifications, maintenance schedules, performance metrics, and documentation. Traditional paper-based systems are error-prone and inefficient. What if you could build a digital dashboard that not only stores equipment data but also provides interactive analytics for performance optimization?
+
+In this article, I'll show you how I built an industrial pump management system with photo uploads, maintenance tracking, and advanced data visualization using ECharts and AG Charts.
+
+<Aside type="tip">
+**What you'll learn:**
+- Design database schema for equipment tracking
+- Implement secure file upload with UUID naming
+- Create CRUD API with Flask and SQLAlchemy
+- Build interactive dashboards with ECharts
+- Implement TanStack Table with sorting/filtering
+- Export data to Excel
+- Track maintenance schedules
+- Use audit logging for equipment changes
+</Aside>
+
+## Database Schema: Tracking Equipment Data
+
+Our pump system needs to track both specifications and operational data:
+
+```python
+# backend/portfolio_app/models/tbl_pumps.py
+from datetime import datetime
+from portfolio_app import db
+
+class Pump(db.Model):
+    __tablename__ = "tbl_pumps"
+    
+    # Primary identifiers
+    ccn_pump = db.Column(db.Integer, primary_key=True)
+    model = db.Column(db.String(100), nullable=False)
+    serial_number = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    location = db.Column(db.String(200), nullable=False)
+    
+    # Status tracking
+    status = db.Column(
+        db.Enum("active", "inactive", "maintenance"),
+        nullable=False,
+        default="active"
+    )
+    purchase_date = db.Column(db.Date, nullable=False)
+    
+    # Technical specifications
+    flow_rate = db.Column(db.Float, nullable=False)  # L/min
+    pressure = db.Column(db.Float, nullable=False)  # bar
+    power = db.Column(db.Float, nullable=False)  # kW
+    efficiency = db.Column(db.Float, nullable=False)  # percentage
+    voltage = db.Column(db.Float, nullable=False)  # V
+    current = db.Column(db.Float, nullable=False)  # A
+    power_factor = db.Column(db.Float, nullable=False)  # 0-1
+    
+    # Maintenance tracking
+    last_maintenance = db.Column(db.Date, nullable=False)
+    next_maintenance = db.Column(db.Date, nullable=False)
+    
+    # Photos and documentation
+    photos = db.Column(db.JSON)  # Array of photo filenames
+    
+    # Ownership
+    user_id = db.Column(db.Integer, db.ForeignKey("tbl_users.ccn_user"), nullable=False)
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    # Relationships
+    user = db.relationship("User", backref="pumps")
+    
+    def to_dict(self):
+        return {
+            "ccn_pump": self.ccn_pump,
+            "model": self.model,
+            "serial_number": self.serial_number,
+            "location": self.location,
+            "status": self.status,
+            "purchase_date": self.purchase_date.isoformat(),
+            "flow_rate": float(self.flow_rate),
+            "pressure": float(self.pressure),
+            "power": float(self.power),
+            "efficiency": float(self.efficiency),
+            "voltage": float(self.voltage),
+            "current": float(self.current),
+            "power_factor": float(self.power_factor),
+            "last_maintenance": self.last_maintenance.isoformat(),
+            "next_maintenance": self.next_maintenance.isoformat(),
+            "photos": self.photos or [],
+            "user_id": self.user_id,
+            "created_at": self.created_at.isoformat()
+        }
+    
+    def __repr__(self):
+        return f"Pump('{self.model}', SN: '{self.serial_number}')"
+```
+
+<Aside type="note">
+**Design Choice**: We store technical specifications as separate columns rather than JSON to enable efficient querying and analysis. This allows us to run aggregate queries like average efficiency or filter by power consumption.
+</Aside>
+
+## Secure File Upload Implementation
+
+Let's implement secure photo uploads with UUID naming:
+
+```python
+# backend/portfolio_app/resources/resource_pumps.py
+from flask import Blueprint, request, jsonify, send_from_directory
+from flask_jwt_extended import jwt_required
+from werkzeug.utils import secure_filename
+import os
+import uuid
+from datetime import datetime
+
+from portfolio_app import db
+from portfolio_app.models.tbl_pumps import Pump
+from portfolio_app.decorators.auth_decorators import require_permission
+from portfolio_app.services.audit_log_service import AuditLogService
+
+blueprint_api_pump = Blueprint("api_pump", __name__)
+
+# File upload configuration
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+
+def allowed_file(filename):
+    """Check if file has allowed extension"""
+    return "." in filename and \
+           filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def save_pump_photo(file, pump_id):
+    """Save pump photo with UUID naming"""
+    if file and allowed_file(file.filename):
+        # Generate unique filename
+        file_extension = file.filename.rsplit(".", 1)[1].lower()
+        unique_filename = f"{uuid.uuid4()}.{file_extension}"
+        
+        # Create pump directory
+        pump_dir = os.path.join("portfolio_app", "static", "pumps", str(pump_id))
+        os.makedirs(pump_dir, exist_ok=True)
+        
+        # Save file
+        file_path = os.path.join(pump_dir, unique_filename)
+        file.save(file_path)
+        
+        return unique_filename
+    return None
+
+@blueprint_api_pump.route("/api/v1/pumps", methods=["POST"])
+@jwt_required()
+@require_permission("pumps", "create")
+def create_pump():
+    """Create new pump with optional photo upload"""
+    try:
+        # Get form data
+        request_data = request.form.to_dict()
+        
+        # Required fields validation
+        required_fields = [
+            "model", "serial_number", "location", "purchase_date", "status",
+            "flow_rate", "pressure", "power", "efficiency", "voltage",
+            "current", "power_factor", "last_maintenance", "next_maintenance", "user_id"
+        ]
+        
+        for field in required_fields:
+            if field not in request_data:
+                return {"error": f"Missing required field: {field}"}, 400
+        
+        # Parse dates
+        purchase_date = datetime.strptime(request_data["purchase_date"], "%Y-%m-%d")
+        last_maintenance = datetime.strptime(request_data["last_maintenance"], "%Y-%m-%d")
+        next_maintenance = datetime.strptime(request_data["next_maintenance"], "%Y-%m-%d")
+        
+        # Create pump
+        new_pump = Pump(
+            model=request_data["model"],
+            serial_number=request_data["serial_number"],
+            location=request_data["location"],
+            purchase_date=purchase_date,
+            status=request_data["status"],
+            flow_rate=float(request_data["flow_rate"]),
+            pressure=float(request_data["pressure"]),
+            power=float(request_data["power"]),
+            efficiency=float(request_data["efficiency"]),
+            voltage=float(request_data["voltage"]),
+            current=float(request_data["current"]),
+            power_factor=float(request_data["power_factor"]),
+            last_maintenance=last_maintenance,
+            next_maintenance=next_maintenance,
+            user_id=int(request_data["user_id"])
+        )
+        
+        db.session.add(new_pump)
+        db.session.flush()  # Get pump ID before commit
+        
+        # Handle photo uploads
+        photos = []
+        if 'photos' in request.files:
+            files = request.files.getlist('photos')
+            for file in files:
+                if file and allowed_file(file.filename):
+                    filename = save_pump_photo(file, new_pump.ccn_pump)
+                    if filename:
+                        photos.append(filename)
+        
+        new_pump.photos = photos
+        db.session.commit()
+        
+        # Audit log
+        AuditLogService.log_create(
+            ccn_user=new_pump.user_id,
+            resource="pumps",
+            description=f"Created pump: {new_pump.model} (SN: {new_pump.serial_number})"
+        )
+        
+        return {"pump": new_pump.to_dict(), "message": "Pump created successfully"}, 201
+    
+    except ValueError as e:
+        db.session.rollback()
+        return {"error": f"Invalid data: {str(e)}"}, 400
+    except Exception as e:
+        db.session.rollback()
+        return {"error": f"Server error: {str(e)}"}, 500
+
+@blueprint_api_pump.route("/api/v1/pumps/<int:pump_id>/photos/<filename>", methods=["GET"])
+@jwt_required()
+def get_pump_photo(pump_id, filename):
+    """Serve pump photos"""
+    photo_dir = os.path.join("portfolio_app", "static", "pumps", str(pump_id))
+    return send_from_directory(photo_dir, filename)
+```
+
+<Aside type="caution">
+**Security Warning**: Always validate file types, limit file sizes, use UUID naming to prevent path traversal attacks, and scan uploaded files for malware in production environments.
+</Aside>
+
+## Interactive Analytics with ECharts
+
+Now let's create beautiful data visualizations:
+
+```jsx
+// frontend/src/components/pump/DataAnalysisContentECharts.jsx
+import ReactECharts from 'echarts-for-react';
+import { useState, useEffect } from 'react';
+
+function DataAnalysisContentECharts({ pumps }) {
+  
+  // Efficiency Distribution Chart
+  const getEfficiencyOption = () => {
+    return {
+      title: {
+        text: 'Pump Efficiency Distribution',
+        left: 'center'
+      },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' }
+      },
+      xAxis: {
+        type: 'category',
+        data: pumps.map(p => p.model),
+        axisLabel: {
+          rotate: 45,
+          interval: 0
+        }
+      },
+      yAxis: {
+        type: 'value',
+        name: 'Efficiency (%)',
+        max: 100
+      },
+      series: [{
+        name: 'Efficiency',
+        type: 'bar',
+        data: pumps.map(p => p.efficiency),
+        itemStyle: {
+          color: (params) => {
+            const value = params.value;
+            if (value >= 85) return '#10b981'; // Green
+            if (value >= 70) return '#f59e0b'; // Yellow
+            return '#ef4444'; // Red
+          }
+        },
+        label: {
+          show: true,
+          position: 'top',
+          formatter: '{c}%'
+        }
+      }]
+    };
+  };
+  
+  // Flow Rate vs Pressure Scatter Plot
+  const getFlowPressureOption = () => {
+    return {
+      title: {
+        text: 'Flow Rate vs Pressure Analysis',
+        left: 'center'
+      },
+      tooltip: {
+        trigger: 'item',
+        formatter: (params) => {
+          const pump = pumps[params.dataIndex];
+          return `${pump.model}<br/>
+                  Flow: ${pump.flow_rate} L/min<br/>
+                  Pressure: ${pump.pressure} bar<br/>
+                  Efficiency: ${pump.efficiency}%`;
+        }
+      },
+      xAxis: {
+        type: 'value',
+        name: 'Flow Rate (L/min)',
+        nameLocation: 'middle',
+        nameGap: 30
+      },
+      yAxis: {
+        type: 'value',
+        name: 'Pressure (bar)',
+        nameLocation: 'middle',
+        nameGap: 40
+      },
+      series: [{
+        type: 'scatter',
+        data: pumps.map(p => [p.flow_rate, p.pressure]),
+        symbolSize: (val, params) => {
+          const pump = pumps[params.dataIndex];
+          return pump.efficiency / 2; // Size based on efficiency
+        },
+        itemStyle: {
+          color: '#3b82f6',
+          opacity: 0.6
+        }
+      }]
+    };
+  };
+  
+  // Power Consumption Trend
+  const getPowerConsumptionOption = () => {
+    const sortedByPower = [...pumps].sort((a, b) => a.power - b.power);
+    
+    return {
+      title: {
+        text: 'Power Consumption Analysis',
+        left: 'center'
+      },
+      tooltip: {
+        trigger: 'axis'
+      },
+      legend: {
+        bottom: 0,
+        data: ['Power (kW)', 'Efficiency (%)']
+      },
+      xAxis: {
+        type: 'category',
+        data: sortedByPower.map(p => p.model),
+        axisLabel: { rotate: 45 }
+      },
+      yAxis: [
+        {
+          type: 'value',
+          name: 'Power (kW)',
+          position: 'left'
+        },
+        {
+          type: 'value',
+          name: 'Efficiency (%)',
+          position: 'right',
+          max: 100
+        }
+      ],
+      series: [
+        {
+          name: 'Power (kW)',
+          type: 'line',
+          data: sortedByPower.map(p => p.power),
+          smooth: true,
+          itemStyle: { color: '#ef4444' }
+        },
+        {
+          name: 'Efficiency (%)',
+          type: 'line',
+          yAxisIndex: 1,
+          data: sortedByPower.map(p => p.efficiency),
+          smooth: true,
+          itemStyle: { color: '#10b981' }
+        }
+      ]
+    };
+  };
+  
+  // Status Distribution Pie Chart
+  const getStatusDistributionOption = () => {
+    const statusCounts = pumps.reduce((acc, pump) => {
+      acc[pump.status] = (acc[pump.status] || 0) + 1;
+      return acc;
+    }, {});
+    
+    return {
+      title: {
+        text: 'Pump Status Distribution',
+        left: 'center'
+      },
+      tooltip: {
+        trigger: 'item',
+        formatter: '{b}: {c} ({d}%)'
+      },
+      legend: {
+        bottom: 0
+      },
+      series: [{
+        name: 'Status',
+        type: 'pie',
+        radius: '60%',
+        data: Object.entries(statusCounts).map(([status, count]) => ({
+          value: count,
+          name: status.charAt(0).toUpperCase() + status.slice(1),
+          itemStyle: {
+            color: status === 'active' ? '#10b981' : 
+                   status === 'maintenance' ? '#f59e0b' : '#ef4444'
+          }
+        })),
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 10,
+            shadowOffsetX: 0,
+            shadowColor: 'rgba(0, 0, 0, 0.5)'
+          }
+        }
+      }]
+    };
+  };
+  
+  return (
+    <div className="space-y-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white p-4 rounded-lg shadow">
+          <ReactECharts option={getEfficiencyOption()} style={{ height: '400px' }} />
+        </div>
+        <div className="bg-white p-4 rounded-lg shadow">
+          <ReactECharts option={getStatusDistributionOption()} style={{ height: '400px' }} />
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white p-4 rounded-lg shadow">
+          <ReactECharts option={getFlowPressureOption()} style={{ height: '400px' }} />
+        </div>
+        <div className="bg-white p-4 rounded-lg shadow">
+          <ReactECharts option={getPowerConsumptionOption()} style={{ height: '400px' }} />
+        </div>
+      </div>
+      
+      {/* Key Metrics Summary */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <MetricCard 
+          title="Average Efficiency" 
+          value={`${(pumps.reduce((sum, p) => sum + p.efficiency, 0) / pumps.length).toFixed(1)}%`}
+          icon="⚡"
+        />
+        <MetricCard 
+          title="Total Power" 
+          value={`${pumps.reduce((sum, p) => sum + p.power, 0).toFixed(1)} kW`}
+          icon="🔋"
+        />
+        <MetricCard 
+          title="Active Pumps" 
+          value={pumps.filter(p => p.status === 'active').length}
+          icon="✅"
+        />
+        <MetricCard 
+          title="Maintenance Due" 
+          value={pumps.filter(p => new Date(p.next_maintenance) < new Date()).length}
+          icon="⚠️"
+        />
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ title, value, icon }) {
+  return (
+    <div className="bg-white p-6 rounded-lg shadow">
+      <div className="text-4xl mb-2">{icon}</div>
+      <div className="text-sm text-gray-600">{title}</div>
+      <div className="text-2xl font-bold">{value}</div>
+    </div>
+  );
+}
+
+export default DataAnalysisContentECharts;
+```
+
+## Advanced Table with TanStack React Table
+
+Build a powerful, sortable table for pump management:
+
+```jsx
+// frontend/src/components/pump/PumpTableTanStack.jsx
+import { useMemo } from 'react';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  flexRender
+} from '@tanstack/react-table';
+import { utils, writeFile } from 'xlsx';
+
+function PumpTableTanStack({ pumps, onEdit, onDelete, onViewDetails }) {
+  
+  const columns = useMemo(() => [
+    {
+      accessorKey: 'model',
+      header: 'Model',
+      cell: info => (
+        <span className="font-medium">{info.getValue()}</span>
+      )
+    },
+    {
+      accessorKey: 'serial_number',
+      header: 'Serial Number',
+      cell: info => (
+        <span className="font-mono text-sm">{info.getValue()}</span>
+      )
+    },
+    {
+      accessorKey: 'location',
+      header: 'Location'
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: info => {
+        const status = info.getValue();
+        const colors = {
+          active: 'bg-green-100 text-green-800',
+          inactive: 'bg-red-100 text-red-800',
+          maintenance: 'bg-yellow-100 text-yellow-800'
+        };
+        return (
+          <span className={`px-2 py-1 rounded-full text-xs ${colors[status]}`}>
+            {status.toUpperCase()}
+          </span>
+        );
+      }
+    },
+    {
+      accessorKey: 'efficiency',
+      header: 'Efficiency (%)',
+      cell: info => (
+        <div className="flex items-center">
+          <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+            <div 
+              className="bg-blue-600 h-2 rounded-full" 
+              style={{ width: `${info.getValue()}%` }}
+            />
+          </div>
+          <span>{info.getValue()}%</span>
+        </div>
+      )
+    },
+    {
+      accessorKey: 'flow_rate',
+      header: 'Flow (L/min)',
+      cell: info => info.getValue().toFixed(1)
+    },
+    {
+      accessorKey: 'pressure',
+      header: 'Pressure (bar)',
+      cell: info => info.getValue().toFixed(2)
+    },
+    {
+      accessorKey: 'power',
+      header: 'Power (kW)',
+      cell: info => info.getValue().toFixed(2)
+    },
+    {
+      accessorKey: 'next_maintenance',
+      header: 'Next Maintenance',
+      cell: info => {
+        const date = new Date(info.getValue());
+        const isPast = date < new Date();
+        return (
+          <span className={isPast ? 'text-red-600 font-semibold' : ''}>
+            {date.toLocaleDateString()}
+          </span>
+        );
+      }
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      cell: info => (
+        <div className="flex space-x-2">
+          <button
+            onClick={() => onViewDetails(info.row.original)}
+            className="text-blue-600 hover:text-blue-800"
+            title="View Details"
+          >
+            👁️
+          </button>
+          <button
+            onClick={() => onEdit(info.row.original)}
+            className="text-green-600 hover:text-green-800"
+            title="Edit"
+          >
+            ✏️
+          </button>
+          <button
+            onClick={() => onDelete(info.row.original.ccn_pump)}
+            className="text-red-600 hover:text-red-800"
+            title="Delete"
+          >
+            🗑️
+          </button>
+        </div>
+      )
+    }
+  ], [onEdit, onDelete, onViewDetails]);
+  
+  const table = useReactTable({
+    data: pumps,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: {
+      pagination: {
+        pageSize: 10
+      }
+    }
+  });
+  
+  const exportToExcel = () => {
+    const exportData = pumps.map(pump => ({
+      'Model': pump.model,
+      'Serial Number': pump.serial_number,
+      'Location': pump.location,
+      'Status': pump.status,
+      'Flow Rate (L/min)': pump.flow_rate,
+      'Pressure (bar)': pump.pressure,
+      'Power (kW)': pump.power,
+      'Efficiency (%)': pump.efficiency,
+      'Voltage (V)': pump.voltage,
+      'Current (A)': pump.current,
+      'Power Factor': pump.power_factor,
+      'Last Maintenance': pump.last_maintenance,
+      'Next Maintenance': pump.next_maintenance
+    }));
+    
+    const ws = utils.json_to_sheet(exportData);
+    const wb = utils.book_new();
+    utils.book_append_sheet(wb, ws, 'Pumps');
+    writeFile(wb, `pumps_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+  
+  return (
+    <div className="bg-white rounded-lg shadow p-6">
+      {/* Header with Search and Export */}
+      <div className="flex justify-between items-center mb-4">
+        <input
+          type="text"
+          placeholder="Search pumps..."
+          onChange={(e) => table.setGlobalFilter(e.target.value)}
+          className="p-2 border rounded w-64"
+        />
+        <button
+          onClick={exportToExcel}
+          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+        >
+          📊 Export to Excel
+        </button>
+      </div>
+      
+      {/* Table */}
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-100">
+            {table.getHeaderGroups().map(headerGroup => (
+              <tr key={headerGroup.id}>
+                {headerGroup.headers.map(header => (
+                  <th
+                    key={header.id}
+                    className="p-3 text-left cursor-pointer hover:bg-gray-200"
+                    onClick={header.column.getToggleSortingHandler()}
+                  >
+                    <div className="flex items-center">
+                      {flexRender(
+                        header.column.columnDef.header,
+                        header.getContext()
+                      )}
+                      <span className="ml-2">
+                        {{
+                          asc: '↑',
+                          desc: '↓'
+                        }[header.column.getIsSorted()] ?? '↕️'}
+                      </span>
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody>
+            {table.getRowModel().rows.map(row => (
+              <tr key={row.id} className="border-b hover:bg-gray-50">
+                {row.getVisibleCells().map(cell => (
+                  <td key={cell.id} className="p-3">
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      
+      {/* Pagination */}
+      <div className="flex items-center justify-between mt-4">
+        <div className="flex gap-2">
+          <button
+            onClick={() => table.setPageIndex(0)}
+            disabled={!table.getCanPreviousPage()}
+            className="px-3 py-1 border rounded disabled:opacity-50"
+          >
+            {'<<'}
+          </button>
+          <button
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+            className="px-3 py-1 border rounded disabled:opacity-50"
+          >
+            {'<'}
+          </button>
+          <button
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+            className="px-3 py-1 border rounded disabled:opacity-50"
+          >
+            {'>'}
+          </button>
+          <button
+            onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+            disabled={!table.getCanNextPage()}
+            className="px-3 py-1 border rounded disabled:opacity-50"
+          >
+            {'>>'}
+          </button>
+        </div>
+        
+        <span className="text-sm text-gray-600">
+          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+          {' - '}
+          {table.getFilteredRowModel().rows.length} total pumps
+        </span>
+        
+        <select
+          value={table.getState().pagination.pageSize}
+          onChange={e => table.setPageSize(Number(e.target.value))}
+          className="border rounded p-1"
+        >
+          {[10, 20, 50, 100].map(size => (
+            <option key={size} value={size}>
+              Show {size}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+export default PumpTableTanStack;
+```
+
+## Drag-and-Drop Photo Upload
+
+Implement a modern photo upload interface:
+
+```jsx
+// frontend/src/components/pump/PhotoUpload.jsx
+import { useCallback } from 'react';
+import { useDropzone } from 'react-dropzone';
+
+function PhotoUpload({ onPhotosChange, existingPhotos = [] }) {
+  const [photos, setPhotos] = useState(existingPhotos);
+  
+  const onDrop = useCallback((acceptedFiles) => {
+    // Validate file size and type
+    const validFiles = acceptedFiles.filter(file => {
+      const isValidType = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp']
+        .includes(file.type);
+      const isValidSize = file.size <= 5 * 1024 * 1024; // 5MB
+      
+      if (!isValidType) {
+        toast.error(`${file.name}: Invalid file type. Use PNG, JPG, GIF, or WebP.`);
+        return false;
+      }
+      if (!isValidSize) {
+        toast.error(`${file.name}: File too large. Maximum size is 5MB.`);
+        return false;
+      }
+      return true;
+    });
+    
+    // Preview URLs
+    const newPhotos = validFiles.map(file => ({
+      file,
+      preview: URL.createObjectURL(file),
+      name: file.name
+    }));
+    
+    const updatedPhotos = [...photos, ...newPhotos];
+    setPhotos(updatedPhotos);
+    onPhotosChange(updatedPhotos.map(p => p.file));
+  }, [photos, onPhotosChange]);
+  
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp']
+    },
+    maxSize: 5242880, // 5MB
+    multiple: true
+  });
+  
+  const removePhoto = (index) => {
+    const updatedPhotos = photos.filter((_, i) => i !== index);
+    setPhotos(updatedPhotos);
+    onPhotosChange(updatedPhotos.map(p => p.file));
+  };
+  
+  return (
+    <div>
+      {/* Dropzone */}
+      <div
+        {...getRootProps()}
+        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+          isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400'
+        }`}
+      >
+        <input {...getInputProps()} />
+        <div className="text-6xl mb-4">📸</div>
+        {isDragActive ? (
+          <p className="text-blue-600 font-medium">Drop the photos here...</p>
+        ) : (
+          <>
+            <p className="text-gray-700 font-medium mb-2">
+              Drag & drop photos here, or click to select
+            </p>
+            <p className="text-sm text-gray-500">
+              Supported: PNG, JPG, GIF, WebP (max 5MB each)
+            </p>
+          </>
+        )}
+      </div>
+      
+      {/* Photo Previews */}
+      {photos.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+          {photos.map((photo, index) => (
+            <div key={index} className="relative group">
+              <img
+                src={photo.preview}
+                alt={photo.name}
+                className="w-full h-32 object-cover rounded-lg"
+              />
+              <button
+                onClick={() => removePhoto(index)}
+                className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 
+                         opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                ✕
+              </button>
+              <div className="text-xs text-gray-600 mt-1 truncate">{photo.name}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default PhotoUpload;
+```
+
+<Aside type="tip">
+**UX Enhancement**: React-dropzone provides an excellent user experience. Users can drag files directly from their file manager or click to select. Always show visual feedback during drag operations.
+</Aside>
+
+## Pump CRUD Operations
+
+Complete CRUD interface with modal forms:
+
+```jsx
+// frontend/src/components/pump/PumpModal.jsx
+import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import PhotoUpload from './PhotoUpload';
+
+function PumpModal({ isOpen, onClose, pump, onSave }) {
+  const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm();
+  const [photos, setPhotos] = useState([]);
+  const [loading, setLoading] = useState(false);
+  
+  useEffect(() => {
+    if (pump) {
+      // Populate form with pump data for editing
+      Object.keys(pump).forEach(key => {
+        setValue(key, pump[key]);
+      });
+    } else {
+      reset();
+    }
+  }, [pump, reset, setValue]);
+  
+  const onSubmit = async (data) => {
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      
+      // Append form fields
+      Object.keys(data).forEach(key => {
+        formData.append(key, data[key]);
+      });
+      
+      // Append photos
+      photos.forEach(photo => {
+        formData.append('photos', photo);
+      });
+      
+      const url = pump 
+        ? `/api/v1/pumps/${pump.ccn_pump}`
+        : '/api/v1/pumps';
+      
+      const method = pump ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        },
+        body: formData
+      });
+      
+      if (response.ok) {
+        toast.success(`Pump ${pump ? 'updated' : 'created'} successfully!`);
+        onSave();
+        onClose();
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Operation failed');
+      }
+    } catch (error) {
+      toast.error('Error saving pump');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b p-6 flex justify-between items-center">
+          <h2 className="text-2xl font-bold">
+            {pump ? 'Edit Pump' : 'Add New Pump'}
+          </h2>
+          <button onClick={onClose} className="text-2xl">&times;</button>
+        </div>
+        
+        <form onSubmit={handleSubmit(onSubmit)} className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Basic Information */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Model *</label>
+              <input
+                {...register('model', { required: 'Model is required' })}
+                className="w-full p-2 border rounded"
+                placeholder="e.g., Centrifugal Pump X100"
+              />
+              {errors.model && <span className="text-red-500 text-sm">{errors.model.message}</span>}
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">Serial Number *</label>
+              <input
+                {...register('serial_number', { required: 'Serial number is required' })}
+                className="w-full p-2 border rounded"
+                placeholder="e.g., SN123456789"
+              />
+              {errors.serial_number && <span className="text-red-500 text-sm">{errors.serial_number.message}</span>}
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">Location *</label>
+              <input
+                {...register('location', { required: 'Location is required' })}
+                className="w-full p-2 border rounded"
+                placeholder="e.g., Building A - Room 101"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">Status *</label>
+              <select
+                {...register('status', { required: true })}
+                className="w-full p-2 border rounded"
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="maintenance">Maintenance</option>
+              </select>
+            </div>
+            
+            {/* Technical Specifications */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Flow Rate (L/min) *</label>
+              <input
+                {...register('flow_rate', { required: true, min: 0 })}
+                type="number"
+                step="0.1"
+                className="w-full p-2 border rounded"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">Pressure (bar) *</label>
+              <input
+                {...register('pressure', { required: true, min: 0 })}
+                type="number"
+                step="0.01"
+                className="w-full p-2 border rounded"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">Power (kW) *</label>
+              <input
+                {...register('power', { required: true, min: 0 })}
+                type="number"
+                step="0.1"
+                className="w-full p-2 border rounded"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">Efficiency (%) *</label>
+              <input
+                {...register('efficiency', { required: true, min: 0, max: 100 })}
+                type="number"
+                step="0.1"
+                className="w-full p-2 border rounded"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">Voltage (V) *</label>
+              <input
+                {...register('voltage', { required: true, min: 0 })}
+                type="number"
+                step="0.1"
+                className="w-full p-2 border rounded"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">Current (A) *</label>
+              <input
+                {...register('current', { required: true, min: 0 })}
+                type="number"
+                step="0.1"
+                className="w-full p-2 border rounded"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">Power Factor *</label>
+              <input
+                {...register('power_factor', { required: true, min: 0, max: 1 })}
+                type="number"
+                step="0.01"
+                className="w-full p-2 border rounded"
+                placeholder="0.95"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">Purchase Date *</label>
+              <input
+                {...register('purchase_date', { required: true })}
+                type="date"
+                className="w-full p-2 border rounded"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">Last Maintenance *</label>
+              <input
+                {...register('last_maintenance', { required: true })}
+                type="date"
+                className="w-full p-2 border rounded"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">Next Maintenance *</label>
+              <input
+                {...register('next_maintenance', { required: true })}
+                type="date"
+                className="w-full p-2 border rounded"
+              />
+            </div>
+          </div>
+          
+          {/* Photo Upload */}
+          <div className="mt-6">
+            <label className="block text-sm font-medium mb-2">Photos</label>
+            <PhotoUpload onPhotosChange={setPhotos} existingPhotos={pump?.photos || []} />
+          </div>
+          
+          {/* Submit Button */}
+          <div className="mt-6 flex justify-end space-x-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-2 border rounded hover:bg-gray-100"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+            >
+              {loading ? 'Saving...' : pump ? 'Update' : 'Create'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export default PumpModal;
+```
+
+## Maintenance Tracking Feature
+
+Add automatic alerts for upcoming maintenance:
+
+```jsx
+// frontend/src/utils/maintenanceAlerts.js
+export const getMaintenanceStatus = (nextMaintenanceDate) => {
+  const today = new Date();
+  const maintenanceDate = new Date(nextMaintenanceDate);
+  const daysUntil = Math.floor((maintenanceDate - today) / (1000 * 60 * 60 * 24));
+  
+  if (daysUntil < 0) {
+    return { status: 'overdue', message: `Overdue by ${Math.abs(daysUntil)} days`, color: 'red' };
+  } else if (daysUntil <= 7) {
+    return { status: 'urgent', message: `Due in ${daysUntil} days`, color: 'orange' };
+  } else if (daysUntil <= 30) {
+    return { status: 'upcoming', message: `Due in ${daysUntil} days`, color: 'yellow' };
+  } else {
+    return { status: 'ok', message: `Due in ${daysUntil} days`, color: 'green' };
+  }
+};
+
+// Usage in component
+function MaintenanceAlert({ pump }) {
+  const maintenance = getMaintenanceStatus(pump.next_maintenance);
+  
+  const colorClasses = {
+    red: 'bg-red-100 text-red-800 border-red-300',
+    orange: 'bg-orange-100 text-orange-800 border-orange-300',
+    yellow: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+    green: 'bg-green-100 text-green-800 border-green-300'
+  };
+  
+  return (
+    <div className={`p-3 rounded border ${colorClasses[maintenance.color]}`}>
+      <div className="font-semibold">Maintenance: {maintenance.status.toUpperCase()}</div>
+      <div className="text-sm">{maintenance.message}</div>
+    </div>
+  );
+}
+```
+
+## Performance Optimization
+
+### Database Query Optimization
+
+```python
+# Use eager loading to avoid N+1 queries
+pumps = Pump.query.options(
+    db.joinedload(Pump.user)
+).filter_by(status='active').all()
+
+# Add indexes for frequently queried fields
+class Pump(db.Model):
+    __tablename__ = "tbl_pumps"
+    
+    # ... fields ...
+    
+    __table_args__ = (
+        db.Index('idx_status_location', 'status', 'location'),
+        db.Index('idx_next_maintenance', 'next_maintenance'),
+        db.Index('idx_user_id', 'user_id')
+    )
+```
+
+### Frontend Performance
+
+```jsx
+// Memoize expensive calculations
+const avgEfficiency = useMemo(() => {
+  return pumps.reduce((sum, p) => sum + p.efficiency, 0) / pumps.length;
+}, [pumps]);
+
+// Lazy load heavy components
+const DataAnalysis = lazy(() => import('./DataAnalysisContentECharts'));
+
+// Virtual scrolling for large lists
+import { useVirtualizer } from '@tanstack/react-virtual';
+```
+
+## Excel Export Implementation
+
+```javascript
+// frontend/src/utils/excelExport.js
+import { utils, writeFile } from 'xlsx';
+
+export const exportPumpsToExcel = (pumps) => {
+  const exportData = pumps.map(pump => ({
+    'Model': pump.model,
+    'Serial Number': pump.serial_number,
+    'Location': pump.location,
+    'Status': pump.status,
+    'Flow Rate (L/min)': pump.flow_rate,
+    'Pressure (bar)': pump.pressure,
+    'Power (kW)': pump.power,
+    'Efficiency (%)': pump.efficiency,
+    'Voltage (V)': pump.voltage,
+    'Current (A)': pump.current,
+    'Power Factor': pump.power_factor,
+    'Last Maintenance': new Date(pump.last_maintenance).toLocaleDateString(),
+    'Next Maintenance': new Date(pump.next_maintenance).toLocaleDateString(),
+    'Purchase Date': new Date(pump.purchase_date).toLocaleDateString()
+  }));
+  
+  // Create worksheet
+  const ws = utils.json_to_sheet(exportData);
+  
+  // Set column widths
+  ws['!cols'] = [
+    { wch: 25 }, // Model
+    { wch: 15 }, // Serial Number
+    { wch: 20 }, // Location
+    { wch: 12 }, // Status
+    { wch: 15 }, // Flow Rate
+    { wch: 15 }, // Pressure
+    { wch: 12 }, // Power
+    { wch: 12 }, // Efficiency
+    { wch: 12 }, // Voltage
+    { wch: 12 }, // Current
+    { wch: 12 }, // Power Factor
+    { wch: 15 }, // Last Maintenance
+    { wch: 15 }, // Next Maintenance
+    { wch: 15 }  // Purchase Date
+  ];
+  
+  // Create workbook
+  const wb = utils.book_new();
+  utils.book_append_sheet(wb, ws, 'Pumps');
+  
+  // Add summary sheet
+  const summaryData = [
+    { Metric: 'Total Pumps', Value: pumps.length },
+    { Metric: 'Active Pumps', Value: pumps.filter(p => p.status === 'active').length },
+    { Metric: 'Average Efficiency', Value: `${(pumps.reduce((s, p) => s + p.efficiency, 0) / pumps.length).toFixed(2)}%` },
+    { Metric: 'Total Power Consumption', Value: `${pumps.reduce((s, p) => s + p.power, 0).toFixed(2)} kW` }
+  ];
+  const wsSummary = utils.json_to_sheet(summaryData);
+  utils.book_append_sheet(wb, wsSummary, 'Summary');
+  
+  // Export
+  writeFile(wb, `pump_inventory_${new Date().toISOString().split('T')[0]}.xlsx`);
+};
+```
+
+## Conclusion
+
+You now have a complete industrial equipment management system with:
+- ✅ CRUD operations with photo uploads
+- ✅ Secure file handling with UUID naming
+- ✅ Interactive analytics with ECharts
+- ✅ Advanced table with TanStack React Table
+- ✅ Maintenance tracking and alerts
+- ✅ Excel export functionality
+- ✅ Audit logging for compliance
+
+This system can be adapted for:
+- Manufacturing equipment tracking
+- Vehicle fleet management
+- Building facilities management
+- Medical equipment tracking
+- Any asset management scenario
+
+The complete implementation is available in my [GitHub repository](https://github.com/ruizdev7/ruizdev7-portfolio).
+
+**Next Steps:** Check out my article on building a content management system with React and Flask!
+
+---
+
+*Questions or feedback? Let's connect on [LinkedIn](https://www.linkedin.com/in/Ruizdev7)!*
+

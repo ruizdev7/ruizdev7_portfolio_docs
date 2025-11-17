@@ -1,0 +1,1199 @@
+---
+title: "Building a Complete User Management System: Registration, Profiles, and Password Reset"
+date: 2024-06-22
+authors:
+  name: Jose G Ruiz
+  title: Software Engineer | DevOps Engineer
+  picture: https://avatars.githubusercontent.com/u/62305538?v=4&size=64
+  url: https://www.linkedin.com/in/Ruizdev7
+excerpt: "Master user management in web applications: Learn to implement secure registration with bcrypt, profile management, email updates, password reset via email tokens, multi-tab logout synchronization, and account deactivation. This comprehensive guide covers Flask-Mail integration, React Hook Form validation, localStorage sync, token-based password recovery, and security best practices for production applications."
+draft: false
+tags:
+  - Backend Development
+  - Frontend Development
+  - Security
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight/components';
+
+## Introduction
+
+User management is the backbone of any web application. From registration to password recovery, every interaction must be secure, user-friendly, and reliable. But how do you implement email-based password reset? How do you synchronize logout across multiple tabs? How do you prevent email enumeration attacks?
+
+In this article, I'll walk you through building a complete user management system that handles the entire user lifecycle with security and UX in mind.
+
+<Aside type="tip">
+**What you'll learn:**
+- Implement secure user registration with bcrypt
+- Build profile management with validation
+- Create email-based password reset with tokens
+- Synchronize authentication across browser tabs
+- Handle email changes with verification
+- Implement account deactivation (soft delete)
+- Send emails with Flask-Mail
+- Build user-friendly forms with React Hook Form
+</Aside>
+
+## User Model with Security Features
+
+Let's start with a comprehensive user model:
+
+```python
+# backend/portfolio_app/models/tbl_users.py
+from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
+from portfolio_app import db
+
+class User(db.Model):
+    __tablename__ = "tbl_users"
+    
+    ccn_user = db.Column(db.Integer, primary_key=True)
+    first_name = db.Column(db.String(50), nullable=False)
+    middle_name = db.Column(db.String(50))
+    last_name = db.Column(db.String(50), nullable=False)
+    email = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    password = db.Column(db.String(300), nullable=False)
+    account_id = db.Column(db.String(300), unique=True, nullable=False)
+    
+    # Account status
+    is_active = db.Column(db.Boolean, default=True)
+    email_verified = db.Column(db.Boolean, default=False)
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    last_login = db.Column(db.DateTime)
+    
+    def __init__(self, first_name, middle_name, last_name, email, password):
+        self.first_name = first_name
+        self.middle_name = middle_name
+        self.last_name = last_name
+        self.email = email
+        self.set_password(password)
+        self.account_id = self._generate_account_id()
+    
+    def set_password(self, password):
+        """Hash and set password"""
+        if len(password) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        self.password = generate_password_hash(password, method='pbkdf2:sha256')
+    
+    def check_password(self, password):
+        """Verify password"""
+        return check_password_hash(self.password, password)
+    
+    def _generate_account_id(self):
+        """Generate unique account ID"""
+        data = f"{self.email}{self.first_name}{self.last_name}{datetime.now()}"
+        return generate_password_hash(data)
+    
+    def update_last_login(self):
+        """Update last login timestamp"""
+        self.last_login = datetime.now()
+        db.session.commit()
+    
+    def to_dict(self, include_sensitive=False):
+        """Serialize user (never include password)"""
+        data = {
+            "ccn_user": self.ccn_user,
+            "first_name": self.first_name,
+            "middle_name": self.middle_name,
+            "last_name": self.last_name,
+            "email": self.email,
+            "account_id": self.account_id,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat()
+        }
+        
+        if include_sensitive:
+            data["last_login"] = self.last_login.isoformat() if self.last_login else None
+            data["email_verified"] = self.email_verified
+        
+        return data
+    
+    def __repr__(self):
+        return f"User('{self.first_name} {self.last_name}', '{self.email}')"
+```
+
+<Aside type="caution">
+**Security Critical**: Never return the password hash in API responses. Always use `to_dict()` or similar serialization methods that explicitly exclude sensitive fields.
+</Aside>
+
+## User Registration
+
+Implement secure user registration:
+
+```python
+# backend/portfolio_app/resources/resource_users.py
+from flask import Blueprint, jsonify, request
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from marshmallow import ValidationError
+from werkzeug.security import generate_password_hash
+
+from portfolio_app import db
+from portfolio_app.models.tbl_users import User
+from portfolio_app.schemas.schema_user import SchemaUser
+from portfolio_app.services.audit_log_service import AuditLogService
+
+blueprint_api_user = Blueprint("api_user", __name__)
+
+@blueprint_api_user.route("/api/v1/users", methods=["POST"])
+def register_user():
+    """User registration endpoint (public or admin-only)"""
+    try:
+        request_data = request.get_json()
+        
+        # Check if email already exists
+        if User.query.filter_by(email=request_data["email"]).first():
+            return {"error": "Email already registered"}, 400
+        
+        # Create new user
+        new_user = User(
+            first_name=request_data["first_name"],
+            middle_name=request_data.get("middle_name", ""),
+            last_name=request_data["last_name"],
+            email=request_data["email"],
+            password=request_data["password"]  # Will be hashed in __init__
+        )
+        
+        db.session.add(new_user)
+        db.session.commit()
+        
+        # Log user creation
+        AuditLogService.log_create(
+            ccn_user=new_user.ccn_user,
+            resource="users",
+            description=f"User registered: {new_user.email}"
+        )
+        
+        return {
+            "user": new_user.to_dict(),
+            "message": "User registered successfully"
+        }, 201
+    
+    except ValueError as e:
+        return {"error": str(e)}, 400
+    except Exception as e:
+        db.session.rollback()
+        return {"error": f"Registration failed: {str(e)}"}, 500
+
+@blueprint_api_user.route("/api/v1/users/<int:user_id>", methods=["GET"])
+@jwt_required()
+def get_user(user_id):
+    """Get user details"""
+    current_user_email = get_jwt_identity()
+    current_user = User.query.filter_by(email=current_user_email).first()
+    
+    user = User.query.get_or_404(user_id)
+    
+    # Users can view their own profile, or need users.read permission
+    if current_user.ccn_user != user_id and not current_user.has_permission("users", "read"):
+        return {"error": "Permission denied"}, 403
+    
+    return {"user": user.to_dict(include_sensitive=True)}, 200
+```
+
+## Password Reset with Email Tokens
+
+Implement secure password reset:
+
+```python
+# backend/portfolio_app/resources/resource_users.py (continued)
+import secrets
+from datetime import datetime, timedelta
+from flask_mail import Message
+from portfolio_app import mail
+
+# Token storage (use Redis in production)
+password_reset_tokens = {}
+
+@blueprint_api_user.route("/api/v1/forgot-password", methods=["POST"])
+def forgot_password():
+    """Request password reset"""
+    try:
+        data = request.get_json()
+        email = data.get("email")
+        
+        user = User.query.filter_by(email=email).first()
+        
+        # Always return success to prevent email enumeration
+        if not user:
+            return {
+                "message": "If the email exists, a reset link has been sent"
+            }, 200
+        
+        # Generate secure token
+        token = secrets.token_urlsafe(32)
+        expiration = datetime.now() + timedelta(hours=1)
+        
+        # Store token (use Redis in production)
+        password_reset_tokens[token] = {
+            "email": email,
+            "expiration": expiration
+        }
+        
+        # Send email
+        reset_link = f"https://ruizdev7.com/reset-password?token={token}"
+        
+        msg = Message(
+            subject="Password Reset Request",
+            sender="noreply@ruizdev7.com",
+            recipients=[email]
+        )
+        msg.html = f"""
+        <h2>Password Reset Request</h2>
+        <p>Hi {user.first_name},</p>
+        <p>You requested a password reset. Click the link below to reset your password:</p>
+        <p><a href="{reset_link}">Reset Password</a></p>
+        <p>This link expires in 1 hour.</p>
+        <p>If you didn't request this, please ignore this email.</p>
+        <br>
+        <p>Best regards,<br>ruizdev7 Team</p>
+        """
+        
+        mail.send(msg)
+        
+        return {
+            "message": "If the email exists, a reset link has been sent"
+        }, 200
+    
+    except Exception as e:
+        return {"error": "Error sending reset email"}, 500
+
+@blueprint_api_user.route("/api/v1/reset-password", methods=["POST"])
+def reset_password():
+    """Reset password with token"""
+    try:
+        data = request.get_json()
+        token = data.get("token")
+        new_password = data.get("new_password")
+        
+        # Validate token
+        if token not in password_reset_tokens:
+            return {"error": "Invalid or expired token"}, 400
+        
+        token_data = password_reset_tokens[token]
+        
+        # Check expiration
+        if datetime.now() > token_data["expiration"]:
+            del password_reset_tokens[token]
+            return {"error": "Token expired"}, 400
+        
+        # Get user and update password
+        user = User.query.filter_by(email=token_data["email"]).first()
+        if not user:
+            return {"error": "User not found"}, 404
+        
+        user.set_password(new_password)
+        db.session.commit()
+        
+        # Invalidate token
+        del password_reset_tokens[token]
+        
+        # Log password reset
+        AuditLogService.log_update(
+            ccn_user=user.ccn_user,
+            resource="users",
+            description="Password reset via email token"
+        )
+        
+        return {"message": "Password reset successfully"}, 200
+    
+    except ValueError as e:
+        return {"error": str(e)}, 400
+    except Exception as e:
+        return {"error": "Password reset failed"}, 500
+```
+
+### Flask-Mail Configuration
+
+```python
+# backend/portfolio_app/config.py
+class ProductionConfig(Config):
+    # ... other config ...
+    
+    # Mail settings
+    MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+    MAIL_PORT = int(os.environ.get('MAIL_PORT', 587))
+    MAIL_USE_TLS = True
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
+    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@ruizdev7.com')
+```
+
+<Aside type="note">
+**Security Note**: We always return the same message regardless of whether the email exists. This prevents attackers from enumerating valid email addresses in the system.
+</Aside>
+
+## Profile Management
+
+Allow users to update their profiles:
+
+```python
+@blueprint_api_user.route("/api/v1/users/<int:user_id>", methods=["PUT"])
+@jwt_required()
+def update_user(user_id):
+    """Update user profile"""
+    current_user_email = get_jwt_identity()
+    current_user = User.query.filter_by(email=current_user_email).first()
+    
+    user = User.query.get_or_404(user_id)
+    
+    # Verify permission (own profile or users.update permission)
+    if current_user.ccn_user != user_id and not current_user.has_permission("users", "update"):
+        return {"error": "Permission denied"}, 403
+    
+    request_data = request.get_json()
+    old_values = user.to_dict()
+    
+    # Update allowed fields
+    if "first_name" in request_data:
+        user.first_name = request_data["first_name"]
+    
+    if "middle_name" in request_data:
+        user.middle_name = request_data["middle_name"]
+    
+    if "last_name" in request_data:
+        user.last_name = request_data["last_name"]
+    
+    if "email" in request_data:
+        # Check email uniqueness
+        if request_data["email"] != user.email:
+            if User.query.filter_by(email=request_data["email"]).first():
+                return {"error": "Email already in use"}, 400
+            user.email = request_data["email"]
+    
+    db.session.commit()
+    
+    # Audit log
+    AuditLogService.log_update(
+        ccn_user=current_user.ccn_user,
+        resource="users",
+        description=f"Updated profile for user {user.ccn_user}"
+    )
+    
+    return {
+        "user": user.to_dict(),
+        "message": "Profile updated successfully"
+    }, 200
+```
+
+## Password Change (Authenticated Users)
+
+```python
+from portfolio_app.schemas.schema_user import UpdatePasswordSchema
+
+@blueprint_api_user.route("/api/v1/users/<int:user_id>/password", methods=["PUT"])
+@jwt_required()
+def change_password(user_id):
+    """Change password (requires current password)"""
+    try:
+        current_user_email = get_jwt_identity()
+        current_user = User.query.filter_by(email=current_user_email).first()
+        
+        # Only users can change their own password
+        if current_user.ccn_user != user_id:
+            return {"error": "You can only change your own password"}, 403
+        
+        # Validate input
+        schema = UpdatePasswordSchema()
+        data = schema.load(request.get_json())
+        
+        # Verify current password
+        if not current_user.check_password(data["current_password"]):
+            return {"error": "Current password is incorrect"}, 401
+        
+        # Check new password is different
+        if data["current_password"] == data["new_password"]:
+            return {"error": "New password must be different"}, 400
+        
+        # Update password
+        current_user.set_password(data["new_password"])
+        db.session.commit()
+        
+        # Log password change
+        AuditLogService.log_update(
+            ccn_user=current_user.ccn_user,
+            resource="users",
+            description="Password changed"
+        )
+        
+        return {"message": "Password changed successfully"}, 200
+    
+    except ValueError as e:
+        return {"error": str(e)}, 400
+    except ValidationError as e:
+        return {"error": "Validation error", "details": e.messages}, 400
+```
+
+## Frontend: Registration Form
+
+Build a user-friendly registration form:
+
+```jsx
+// frontend/src/pages/auth/SignUp.jsx
+import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
+import { useState } from 'react';
+
+function SignUp() {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const { register, handleSubmit, formState: { errors }, watch } = useForm();
+  
+  const password = watch('password');
+  
+  const onSubmit = async (data) => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/v1/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      
+      if (response.ok) {
+        toast.success('Registration successful! Please login.');
+        navigate('/login');
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Registration failed');
+      }
+    } catch (error) {
+      toast.error('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <div className="max-w-md w-full">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Create Account</h1>
+          <p className="text-gray-600 mt-2">Join ruizdev7 platform</p>
+        </div>
+        
+        <form onSubmit={handleSubmit(onSubmit)} className="bg-white p-8 rounded-lg shadow-lg">
+          {/* First Name */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              First Name *
+            </label>
+            <input
+              {...register('first_name', {
+                required: 'First name is required',
+                minLength: { value: 2, message: 'Minimum 2 characters' },
+                maxLength: { value: 50, message: 'Maximum 50 characters' }
+              })}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="John"
+            />
+            {errors.first_name && (
+              <span className="text-red-500 text-sm mt-1">{errors.first_name.message}</span>
+            )}
+          </div>
+          
+          {/* Middle Name (Optional) */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Middle Name
+            </label>
+            <input
+              {...register('middle_name', {
+                maxLength: { value: 50, message: 'Maximum 50 characters' }
+              })}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="Optional"
+            />
+          </div>
+          
+          {/* Last Name */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Last Name *
+            </label>
+            <input
+              {...register('last_name', {
+                required: 'Last name is required',
+                minLength: { value: 2, message: 'Minimum 2 characters' },
+                maxLength: { value: 50, message: 'Maximum 50 characters' }
+              })}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="Doe"
+            />
+            {errors.last_name && (
+              <span className="text-red-500 text-sm mt-1">{errors.last_name.message}</span>
+            )}
+          </div>
+          
+          {/* Email */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Email *
+            </label>
+            <input
+              {...register('email', {
+                required: 'Email is required',
+                pattern: {
+                  value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                  message: 'Invalid email address'
+                }
+              })}
+              type="email"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="john.doe@example.com"
+            />
+            {errors.email && (
+              <span className="text-red-500 text-sm mt-1">{errors.email.message}</span>
+            )}
+          </div>
+          
+          {/* Password */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Password *
+            </label>
+            <input
+              {...register('password', {
+                required: 'Password is required',
+                minLength: { value: 8, message: 'Minimum 8 characters' },
+                pattern: {
+                  value: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+                  message: 'Must contain uppercase, lowercase, and number'
+                }
+              })}
+              type="password"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="••••••••"
+            />
+            {errors.password && (
+              <span className="text-red-500 text-sm mt-1">{errors.password.message}</span>
+            )}
+          </div>
+          
+          {/* Confirm Password */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Confirm Password *
+            </label>
+            <input
+              {...register('confirm_password', {
+                required: 'Please confirm password',
+                validate: value => value === password || 'Passwords do not match'
+              })}
+              type="password"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="••••••••"
+            />
+            {errors.confirm_password && (
+              <span className="text-red-500 text-sm mt-1">{errors.confirm_password.message}</span>
+            )}
+          </div>
+          
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white p-3 rounded-lg font-semibold 
+                     hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed
+                     transition-colors"
+          >
+            {loading ? 'Creating Account...' : 'Sign Up'}
+          </button>
+          
+          {/* Login Link */}
+          <div className="mt-4 text-center">
+            <span className="text-gray-600">Already have an account? </span>
+            <Link to="/login" className="text-blue-600 hover:text-blue-800 font-medium">
+              Login here
+            </Link>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export default SignUp;
+```
+
+## Password Reset Flow (Frontend)
+
+```jsx
+// frontend/src/pages/auth/ForgetPassword.jsx
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { toast } from 'react-toastify';
+
+function ForgetPassword() {
+  const [emailSent, setEmailSent] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const { register, handleSubmit, formState: { errors } } = useForm();
+  
+  const onSubmit = async (data) => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/v1/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      
+      if (response.ok) {
+        setEmailSent(true);
+        toast.success('Reset instructions sent to your email');
+      }
+    } catch (error) {
+      toast.error('Error sending reset email');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  if (emailSent) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-lg text-center">
+          <div className="text-6xl mb-4">📧</div>
+          <h2 className="text-2xl font-bold mb-4">Check Your Email</h2>
+          <p className="text-gray-600 mb-6">
+            We've sent password reset instructions to your email address.
+            The link expires in 1 hour.
+          </p>
+          <Link to="/login" className="text-blue-600 hover:text-blue-800">
+            Return to Login
+          </Link>
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <div className="max-w-md w-full">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold">Reset Password</h1>
+          <p className="text-gray-600 mt-2">
+            Enter your email to receive reset instructions
+          </p>
+        </div>
+        
+        <form onSubmit={handleSubmit(onSubmit)} className="bg-white p-8 rounded-lg shadow-lg">
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Email Address
+            </label>
+            <input
+              {...register('email', {
+                required: 'Email is required',
+                pattern: {
+                  value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                  message: 'Invalid email address'
+                }
+              })}
+              type="email"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="your.email@example.com"
+            />
+            {errors.email && (
+              <span className="text-red-500 text-sm mt-1">{errors.email.message}</span>
+            )}
+          </div>
+          
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white p-3 rounded-lg font-semibold 
+                     hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            {loading ? 'Sending...' : 'Send Reset Link'}
+          </button>
+          
+          <div className="mt-4 text-center">
+            <Link to="/login" className="text-blue-600 hover:text-blue-800">
+              ← Back to Login
+            </Link>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export default ForgetPassword;
+```
+
+```jsx
+// frontend/src/pages/auth/ResetPassword.jsx (companion component)
+import { useSearchParams, useNavigate } from 'react-router-dom';
+
+function ResetPassword() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const token = searchParams.get('token');
+  const { register, handleSubmit, formState: { errors }, watch } = useForm();
+  const [loading, setLoading] = useState(false);
+  
+  const password = watch('new_password');
+  
+  const onSubmit = async (data) => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/v1/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          new_password: data.new_password
+        })
+      });
+      
+      if (response.ok) {
+        toast.success('Password reset successfully!');
+        navigate('/login');
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Reset failed');
+      }
+    } catch (error) {
+      toast.error('Error resetting password');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  if (!token) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">Invalid Reset Link</h2>
+          <Link to="/forgot-password" className="text-blue-600">
+            Request a new reset link
+          </Link>
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <div className="max-w-md w-full">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold">Set New Password</h1>
+        </div>
+        
+        <form onSubmit={handleSubmit(onSubmit)} className="bg-white p-8 rounded-lg shadow-lg">
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              New Password *
+            </label>
+            <input
+              {...register('new_password', {
+                required: 'Password is required',
+                minLength: { value: 8, message: 'Minimum 8 characters' }
+              })}
+              type="password"
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="••••••••"
+            />
+            {errors.new_password && (
+              <span className="text-red-500 text-sm">{errors.new_password.message}</span>
+            )}
+          </div>
+          
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Confirm Password *
+            </label>
+            <input
+              {...register('confirm_password', {
+                required: 'Please confirm password',
+                validate: value => value === password || 'Passwords do not match'
+              })}
+              type="password"
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="••••••••"
+            />
+            {errors.confirm_password && (
+              <span className="text-red-500 text-sm">{errors.confirm_password.message}</span>
+            )}
+          </div>
+          
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white p-3 rounded-lg font-semibold 
+                     hover:bg-blue-700 disabled:opacity-50"
+          >
+            {loading ? 'Resetting...' : 'Reset Password'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export default ResetPassword;
+```
+
+## Multi-Tab Logout Synchronization
+
+Synchronize authentication state across browser tabs:
+
+```javascript
+// frontend/src/hooks/useMultiTabSync.js
+import { useEffect } from 'react';
+import { useDispatch } from 'react-redux';
+import { logout } from '../RTK_Query_app/slices/authSlice';
+
+export const useMultiTabSync = () => {
+  const dispatch = useDispatch();
+  
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      // Listen for logout event from other tabs
+      if (e.key === 'logout-event') {
+        console.log('Logout detected in another tab');
+        dispatch(logout());
+        window.location.href = '/login';
+      }
+      
+      // Listen for token updates
+      if (e.key === 'access_token' && !e.newValue) {
+        console.log('Token removed in another tab');
+        dispatch(logout());
+        window.location.href = '/login';
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [dispatch]);
+};
+
+// Trigger logout across all tabs
+export const broadcastLogout = () => {
+  localStorage.setItem('logout-event', Date.now().toString());
+  localStorage.removeItem('logout-event'); // Cleanup
+};
+
+// Usage in logout function
+const handleLogout = async () => {
+  await fetch('/api/v1/logout', {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+    }
+  });
+  
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  broadcastLogout(); // Notify other tabs
+  
+  dispatch(logout());
+  navigate('/login');
+};
+```
+
+## User Profile Component
+
+Display and edit user profile:
+
+```jsx
+// frontend/src/components/auth/UserProfile.jsx
+import { useState, useEffect } from 'react';
+import { useSelector } from 'react-redux';
+import { useForm } from 'react-hook-form';
+
+function UserProfile() {
+  const { user } = useSelector(state => state.auth);
+  const [editing, setEditing] = useState(false);
+  const { register, handleSubmit, reset } = useForm();
+  
+  useEffect(() => {
+    if (user) {
+      reset({
+        first_name: user.first_name,
+        middle_name: user.middle_name,
+        last_name: user.last_name,
+        email: user.email
+      });
+    }
+  }, [user, reset]);
+  
+  const onSubmit = async (data) => {
+    try {
+      const response = await fetch(`/api/v1/users/${user.ccn_user}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        },
+        body: JSON.stringify(data)
+      });
+      
+      if (response.ok) {
+        toast.success('Profile updated successfully');
+        setEditing(false);
+        // Refresh user data
+      } else {
+        const error = await response.json();
+        toast.error(error.error);
+      }
+    } catch (error) {
+      toast.error('Error updating profile');
+    }
+  };
+  
+  return (
+    <div className="max-w-2xl mx-auto p-6">
+      <div className="bg-white rounded-lg shadow-lg p-8">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold">My Profile</h2>
+          <button
+            onClick={() => setEditing(!editing)}
+            className="text-blue-600 hover:text-blue-800"
+          >
+            {editing ? 'Cancel' : 'Edit Profile'}
+          </button>
+        </div>
+        
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">First Name</label>
+                <input
+                  {...register('first_name')}
+                  disabled={!editing}
+                  className="w-full p-2 border rounded disabled:bg-gray-100"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Last Name</label>
+                <input
+                  {...register('last_name')}
+                  disabled={!editing}
+                  className="w-full p-2 border rounded disabled:bg-gray-100"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">Email</label>
+              <input
+                {...register('email')}
+                disabled={!editing}
+                type="email"
+                className="w-full p-2 border rounded disabled:bg-gray-100"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">Account ID</label>
+              <input
+                value={user?.account_id}
+                disabled
+                className="w-full p-2 border rounded bg-gray-100 font-mono text-sm"
+              />
+            </div>
+            
+            <div className="text-sm text-gray-600">
+              <div>Member since: {new Date(user?.created_at).toLocaleDateString()}</div>
+              {user?.last_login && (
+                <div>Last login: {new Date(user.last_login).toLocaleString()}</div>
+              )}
+            </div>
+          </div>
+          
+          {editing && (
+            <div className="mt-6">
+              <button
+                type="submit"
+                className="w-full bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700"
+              >
+                Save Changes
+              </button>
+            </div>
+          )}
+        </form>
+        
+        {/* Change Password Link */}
+        <div className="mt-8 pt-6 border-t">
+          <Link
+            to="/change-password"
+            className="text-blue-600 hover:text-blue-800 font-medium"
+          >
+            Change Password →
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default UserProfile;
+```
+
+## Admin: User Management Interface
+
+```jsx
+// frontend/src/pages/admin/UserManagement.jsx
+import { useState, useEffect } from 'react';
+import { usePermissions } from '../../hooks/usePermissions';
+
+function UserManagement() {
+  const [users, setUsers] = useState([]);
+  const { hasPermission } = usePermissions();
+  
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+  
+  const fetchUsers = async () => {
+    const response = await fetch('/api/v1/users', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    const data = await response.json();
+    setUsers(data.users);
+  };
+  
+  const handleDeactivate = async (userId) => {
+    if (!confirm('Are you sure you want to deactivate this user?')) return;
+    
+    try {
+      const response = await fetch(`/api/v1/users/${userId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      });
+      
+      if (response.ok) {
+        toast.success('User deactivated');
+        fetchUsers();
+      }
+    } catch (error) {
+      toast.error('Error deactivating user');
+    }
+  };
+  
+  return (
+    <div className="p-6">
+      <h1 className="text-3xl font-bold mb-6">User Management</h1>
+      
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="p-3 text-left">Name</th>
+              <th className="p-3 text-left">Email</th>
+              <th className="p-3 text-left">Status</th>
+              <th className="p-3 text-left">Roles</th>
+              <th className="p-3 text-left">Joined</th>
+              <th className="p-3 text-left">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map(user => (
+              <tr key={user.ccn_user} className="border-b hover:bg-gray-50">
+                <td className="p-3">
+                  {user.first_name} {user.last_name}
+                </td>
+                <td className="p-3">{user.email}</td>
+                <td className="p-3">
+                  <span className={`px-2 py-1 rounded-full text-xs ${
+                    user.is_active 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {user.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                <td className="p-3">
+                  {user.roles?.map(role => (
+                    <span key={role.ccn_role} className="mr-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                      {role.role_name}
+                    </span>
+                  ))}
+                </td>
+                <td className="p-3 text-sm text-gray-600">
+                  {new Date(user.created_at).toLocaleDateString()}
+                </td>
+                <td className="p-3">
+                  {hasPermission('users', 'delete') && (
+                    <button
+                      onClick={() => handleDeactivate(user.ccn_user)}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      Deactivate
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+export default UserManagement;
+```
+
+<Aside type="tip">
+**UX Tip**: Always provide clear feedback for async operations. Use loading states, success messages, and detailed error messages to guide users through the process.
+</Aside>
+
+## Security Best Practices
+
+1. **Password Hashing**: Use bcrypt or pbkdf2 with high cost factor
+2. **Token Security**: Generate cryptographically secure tokens
+3. **Token Expiration**: Set reasonable expiration times (1 hour for reset)
+4. **Email Enumeration**: Return same message for existing/non-existing emails
+5. **Rate Limiting**: Limit password reset requests per IP
+6. **HTTPS Only**: Always use HTTPS in production
+7. **Session Management**: Invalidate all tokens on password change
+8. **Input Validation**: Validate on both client and server
+9. **Audit Logging**: Log all account modifications
+10. **Account Lockout**: Implement lockout after failed attempts
+
+## Conclusion
+
+You now have a complete user management system with:
+- ✅ Secure registration with bcrypt
+- ✅ Profile management and updates
+- ✅ Email-based password reset
+- ✅ Multi-tab logout synchronization
+- ✅ Account deactivation
+- ✅ Email change with verification
+- ✅ Comprehensive validation
+- ✅ Audit logging
+
+This system provides enterprise-grade user management suitable for production applications.
+
+Future enhancements:
+- Email verification on registration
+- Two-factor authentication (2FA)
+- Social login (OAuth)
+- Password strength meter
+- Account recovery questions
+- Login history tracking
+
+The complete code is available in my [GitHub repository](https://github.com/ruizdev7/ruizdev7-portfolio).
+
+**Next Steps:** Learn about implementing a secure contact form with XSS prevention!
+
+---
+
+*Have questions about user management? Let's connect on [LinkedIn](https://www.linkedin.com/in/Ruizdev7)!*
+
